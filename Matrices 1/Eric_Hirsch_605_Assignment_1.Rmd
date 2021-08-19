@@ -1,0 +1,108 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "8/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(gganimate)
+library(tidyverse)
+library(gifski)
+library(grDevices)
+```
+
+```{r}
+x1=c(rep(0,500), seq(0,1,length.out=1000), seq(0,.7,length.out=1000), seq(0,1,length.out=1000), rep(2,500), seq(2,3,length.out=1000), rep(3,500))
+
+y1=c(seq(0,2,length.out=500), rep(0,1000), rep(1,1000), rep(2,1000), seq(0,2,length.out=500), rep(1,1000), seq(0,2,length.out=500))
+
+z <- as.matrix(rbind(x1,y1))
+
+M_Shear <- diag(2)
+M_Scale <- diag(2)
+
+M_Project <- diag(2)
+```
+
+Shear
+
+```{r}
+
+for(i in 1:11) 
+  {
+    
+    w_Shear <- M_Shear %*% z
+    x1 <- w_Shear[1,]
+    y1 <- w_Shear[2,]
+    X11()
+    Shear_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main="Shear")
+    Shear_Plot
+    
+    M_Shear[1,2] <- i/10
+  }
+```
+
+Scale
+
+```{r}
+for(i in 1:11) 
+  {
+w_Scale <- M_Scale %*% z
+    x1 <- w_Scale[1,]
+    y1 <- w_Scale[2,]
+    X11()
+    Scale_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6),  main="Scale")
+    Scale_Plot
+    
+    M_Scale[1,1] <- 1/i
+    M_Scale[2,2] <- 1/i
+}
+```
+
+Rotation
+```{r}
+
+M_Rotate <- diag(2)
+
+for(i in 1:21) 
+  {
+w_Rotate <- M_Rotate %*% z
+    x1 <- w_Rotate[1,]
+    y1 <- w_Rotate[2,]
+    X11()
+    Rotate_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main="Rotate")
+    Rotate_Plot
+
+    angle = (i*18*pi)/180
+      
+    M_Rotate[1,1] <- cos(angle)
+    M_Rotate[2,1] <- -sin(angle)
+    M_Rotate[1,2] <- sin(angle)
+    M_Rotate[2,2] <- cos(angle)
+}
+```
+
+Projection
+```{r}
+for(i in 1:11) 
+  {
+w_Project <- M_Project %*% z
+    x1 <- w_Project[1,]
+    y1 <- w_Project[2,]
+    X11()
+    Project_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main="Project")
+    Project_Plot
+    
+      
+    M_Project[1,1] <- 1
+    M_Project[2,1] <- i/10
+    M_Project[1,2] <- 0
+    M_Project[2,2] <- 1
+}
+```
+
