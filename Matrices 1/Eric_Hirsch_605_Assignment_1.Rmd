@@ -33,7 +33,7 @@ for(i in 1:12)
     x1 <- w_Shear[1,]
     y1 <- w_Shear[2,]
     X11()
-    Shear_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main=paste("Shear", i))
+    Shear_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main=paste("Shear",i))
     Shear_Plot
     
     M_Shear[1,2] <- i/10
@@ -67,9 +67,8 @@ for(i in 1:12)
 w_Rotate <- M_Rotate %*% z
     x1 <- w_Rotate[1,]
     y1 <- w_Rotate[2,]
-    
     X11()
-    Rotate_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main=paste("Rotate", i))
+    Rotate_Plot <- plot(y1~x1, xlim=c(-6,6), ylim=c(-6,6), main=paste("Rotate",i))
     Rotate_Plot
 
     angle = (i*36*pi)/180
