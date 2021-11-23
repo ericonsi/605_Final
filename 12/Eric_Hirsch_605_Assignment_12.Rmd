@@ -1,0 +1,177 @@
+---
+title: "Eric_Hirsch_605_Assignment_12"
+author: "Eric Hirsch"
+date: "11/13/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(lmtest)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Country Comparison Data
+
+We will perform multiple regression analysis on country level data.
+
+#### Get the data
+```{r}
+
+dfCountry <- read.csv("D:\\RStudio\\CUNY_605\\12\\who.csv", header = TRUE)
+
+```
+
+#### __*1. Provide a scatterplot of LifeExp~TotExp, and run simple linear regression. Do not transform the variables. Provide and interpret the F statistics, R^2, standard error,and p-values only. Discuss whether the assumptions of simple linear regression met.*__
+
+```{r}
+options(scipen = 999)
+
+ggplot(dfCountry, aes(TotExp, LifeExp)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Scatterplot of life expectancy (LifeExp) vs govt expenditures (TotExp)")
+
+m1 <- lm(LifeExp ~ TotExp, data = dfCountry)
+summary(m1)
+
+```
+
+*Provide and interpret the F statistics, R^2, standard error, and p-values*
+
+- F statistic: The F statistic tells you something when there is more than one independent variable, so here it has little meaning.
+
+- R^2: 25% of the variation in life expectancy is explained by govt. spending.
+
+- p-values: the p values are near 0, suggesting that our independent variable is significant.
+\
+
+*Here are our assumptions:*
+
+__1. Linear relationship:__
+\
+No, the relationship is clearly strong but not linear.  At low levels of expenditure, life expectancy varies widely.  At higher levels, life expectancy levels out around 80 and stays there. The regression analysis apparently picks up the correlation between the extremes.
+
+__2. Independence:__ 
+\
+
+We have no reason to expect otherwise.
+
+__3. Homoscedasticity:__
+
+
+```{r}
+plot(m1)
+bptest(m1)
+```
+The variance is very high at low values, despite the bp test. We also see that the residuals are not evenly distributed around 0 - they have a distinctly non-normal distribution as the residuals of the fitted values rise and then plunge.
+
+This pattern is already evident in the original scatterplot.  
+
+__4. Normality:__
+
+```{r}
+dmean <- 0
+dse <- summary(m1)$sigma  
+
+ggplot(data = m1, aes(x = .resid)) +
+  geom_histogram(aes(y = ..density..), bins = 50) +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals") +
+  stat_function(fun = dnorm, args = c(mean = dmean, sd = dse), col = "tomato")
+
+
+```
+
+The qq-plot and histogram show that the residuals are not normally distributed but tend to have a number of small underpredictions and a smaller but larger number of overpredicitons.
+
+
+#### __*2. Raise life expectancy to the 4.6 power (i.e., LifeExp^4.6). Raise total expenditures to the 0.06 power (nearly a log transform, TotExp^.06). Plot LifeExp^4.6 as a function of TotExp^.06, and r re-run the simple regression model using the transformed variables. Provide and interpret the F statistics, R^2, standard error, and p-values. Which model is "better?"*__
+
+```{r}
+
+options(scipen = 999)
+
+dfCountry1 <- dfCountry %>%
+  mutate(LifeExp_new = LifeExp^4.6) %>%
+  mutate(TotExp_new = TotExp^.06)
+
+ggplot(dfCountry1, aes(TotExp_new, LifeExp_new)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Scatterplot of life expectancy (LifeExp) vs govt expenditures (TotExp)")
+
+m2 <- lm(LifeExp_new ~ TotExp_new, data = dfCountry1)
+summary(m2)
+
+```
+
+```{r}
+
+plot(m2)
+bptest(m2)
+
+```
+
+
+- F statistic: The F statistic tells you something when there is more than one independent variable, so here it has little meaning.
+
+- R^2: 72% of the variation in life expectancy is explained by govt. spending.
+
+- p-values: the p values are near 0, suggesting that our independent variable is significant.
+
+The model does a much better job of predicting the dependent variable, and the transformation brings the model much more into alignment with the necessary assumptions for running a regression. The model still tends to skew a bit and there is more variability in the middle of the plot.
+
+#### __*3. Using the results from 3, forecast* life expectancy when TotExp^.06 =1.5. Then forecast life expectancy when TotExp^.06=2.5.*__
+
+```{r}
+
+(-736527910 + 1.5*620060216)^(1/4.6)
+(-736527910 + 2.5*620060216)^(1/4.6)
+
+```
+#### __*4.  Build the following multiple regression model and interpret the F Statistics, R^2, standard error, and p-values. How good is the model?*__
+
+*LifeExp = b0+b1 x PropMd + b2 x TotExp +b3 x PropMD x TotExp*
+
+```{r}
+dfCountry2 <- dfCountry %>%
+  mutate(MDTotProduct = PropMD*TotExp)
+
+m3 <- lm(LifeExp ~ PropMD + TotExp + MDTotProduct, data = dfCountry2)
+summary(m3)
+```
+```{r}
+
+m4 <- lm(LifeExp ~ PropMD, data = dfCountry2)
+summary(m4)
+
+plot(m3)
+bptest(m3)
+```
+
+- F statistic: The F statistic and p values are significant.
+
+- R^2: 35% of the variation in life expectancy is explained by the independent variables.
+
+- coefficient p-values: the p values are near 0, suggesting that our independent variables are significant.
+
+The model has a higher R2 than the original model. However, the issues with normality and heteroskedasticity remain. The residuals show that the model is still clearly not linear. 
+What's more, the coefficients are very, very small for the TotEXp variables and won't affect the result much.
+
+### 5.  Forecast LifeExp when PropMD=.03 and TotExp = 14. Does this forecast seem realistic? Why or why not?
+
+```{r}
+
+62.772703255 + .03*1497.493952519  + 14*0.000072333 + .03*14*-0.006025686
+```
+
+107 years old is unreasonable, but so is a propMD of .03.  More reasonable is .003:
+
+```{r}
+
+62.772703255 + .003*1497.493952519  + 14*0.000072333 + .003*14*-0.006025686
+```
+67 years old is reasonable.  

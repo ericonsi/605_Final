@@ -1,0 +1,105 @@
+---
+title: "Eric_Hirsch_605_Discussion_12"
+author: "Eric Hirsch"
+date: "11/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+### Discussion 12 - Using Quadratic, Dichotomous, and Dichotomous*quantitative terms 
+
+For this exercise I looked for data that would benefit from the introduction of a quadratic term, i.e. that would have at least one relationship which was parabolic. The dataset I chose is from kaggle and looks at drug use by age category - "https://www.kaggle.com/fivethirtyeight/fivethirtyeight-drug-use-by-age-dataset." I reasoned that drug use would be lowest at the ends of the age spectrum and highest in the middle.
+
+The dataset had some problems - but because it was for an exercise and not a work project I was willing to make some compromises.  I converted age categories to the mean age in each category.  I also did not concern myself with the fact that it was aggregated data and the categories had different n's. Finally, I could not construct a dichotomous term that wasn't correlated with the other independent variable (alcohol use), so I chose the one least correlated (stimulant use).
+
+
+```{r}
+dfT <- as.data.frame(read.delim("D:\\RStudio\\CUNY_605\\12\\druguse.csv", header = TRUE, stringsAsFactors = FALSE, sep=","))
+
+dfDrugs <- dfT %>% mutate(age=recode(age, 
+                         `22-23`='22.5',
+                         `24-25`='24.5',
+                         '26-29' = '27.5',
+                         '30-34'='32',
+                         '35-49'='42',
+                         '50-64'='57',
+                         '65+'='75')) %>%
+                  mutate(age = as.numeric(age))
+
+```
+
+```{r}
+dfSelectedDrugs <- dfDrugs %>%
+  select(age, alcohol.use, marijuana.use, cocaine.use, heroin.use, inhalant.use, sedative.use, meth.use, stimulant.use )
+library(ResourceSelection)
+kdepairs(dfSelectedDrugs)
+```
+
+Below is my analysis of age vs % of individuals that age who use alcohol. The overall p is .2 and the R2 is .04.  This regression shows no apparent relationship.  The scatterplot, however, shows that they are highly correlated - the plot is not quite parabolic, however - there may be a log transformation needed as well.
+
+```{r}
+ggplot(dfDrugs, aes(age, alcohol.use)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = FALSE)
+
+m1 <- lm(alcohol.use ~ age, data = dfDrugs)
+summary(m1)
+
+par(mfrow=c(2,2))
+plot(m1)
+```
+
+In this version we add our new terms - age squared, stimulant_user, and age*stimulant_user.  The difference is dramatic - p approaches 0, and the R2 is .88.  Age and age squared are both significant with p near 0, stimulant_user is not. The residuals are closer to normal, and there is a bit less heteroskedasticity, but there is still quite a lot.
+
+```{r}
+stimulant_mean <- mean(dfDrugs$cocaine.use)
+
+dfDrugs2 <- dfDrugs %>% mutate(age2 = -1*age^2, age3=age^3) %>%
+  mutate(stimulant_user = case_when(cocaine.use < stimulant_mean ~ 0, cocaine.use >= stimulant_mean ~ 1))
+
+
+ggplot(dfDrugs2, aes(age + age2 + stimulant_user + stimulant_user*age, alcohol.use)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = FALSE)
+
+m3 <- lm(alcohol.use ~ age + age2 + stimulant_user + stimulant_user*age,  data = dfDrugs2)
+summary(m3)
+
+par(mfrow=c(2,2))
+plot(m3)
+
+```
+
+Noting from the kde plots above that cocaine use and inhalant use are quite parabolically related (as inhalant use goes up, so does cocaine use, but as inhalant use continues to go up, cocaine use begins to fall), I tried the analysis with these variables.  Here everything works perfectly with the quadratic - the residuals normalize, heteroskedasticy disappears, R2 rises from .02 to .68, overall p from .56 to near 0 and all coefficients highly significant.
+
+```{r}
+dfDrugs3 <- dfDrugs %>%
+  mutate(inhalant2 = inhalant.use^2) %>%
+  filter(!row_number()==5) %>%
+  mutate(inhalantPlus = inhalant.use + inhalant2)
+
+
+ggplot(dfDrugs3, aes(y=cocaine.use, x=inhalant.use)) +
+  geom_point()
+
+m3 <- lm(cocaine.use ~ inhalant.use, dfDrugs3)
+summary(m3)
+par(mfrow=c(2,2))
+plot(m3)
+
+m3 <- lm(cocaine.use ~ inhalant.use + inhalant2, dfDrugs3)
+summary(m3)
+par(mfrow=c(2,2))
+plot(m3)
+
+```
+
+
+

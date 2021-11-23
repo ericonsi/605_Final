@@ -1,0 +1,42 @@
+---
+title: "Discussion 13"
+author: "Eric Hirsch"
+date: "11/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+__*p.359 #11. Find the area from 0 to 1 between these functions: y=4^x and y=2^x.*__
+
+We can use the Fundamental Theorem of Calculus 2 for this:
+$$
+\int _{ a }^{b }{ (f(x) - g(x))dx}\\
+$$
+The integrals are $$4^x/ln(4) + C$$ and $$2^x/ln(2) + C$$  0 to 1 is an easy interval to ingrate over since we get $$4/ln(4) - 1/ln(4) = 3/ln(4)$$ and $$2/ln(2) - 1/ln(2) = 1/ln(2)$$.  Here we use R to do the math:
+
+```{r}
+int1 <- function(x) {4^x}
+q1 <- integrate(int1, lower = 0, upper = 1)
+q1
+```
+```{r}
+int2 <- function(x) {2^x}
+q2 <- integrate(int2, lower = 0, upper = 1)
+q2
+```
+
+```{r}
+q1$value - q2$value
+```
+
+Area is .7213475
+
+And to check:
+```{r}
+
+3/log(4)-1/log(2)
+```

@@ -1,0 +1,126 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "11/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+   
+#Assignment - MNIST dataset
+
+#-------------------------------------------Data Sourcing-----------------------------------------------------------
+#Loading Neccessary libraries
+library(kernlab)
+library(readr)
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+
+#Loading train & test data
+mnist2 <- read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST.csv",header=TRUE)
+mnist_test <- read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST2.csv",header=TRUE)
+```
+```{r}
+mnist <- mnist2[sample(nrow(mnist2), 1000), ]  
+colnames(mnist)[1]<-"Digit"
+View(mnist)
+```
+
+```{r}
+
+#Distribution percentage of each digit
+table(mnist$Digit)/nrow(mnist) *100  
+table(mnist_test$Digit)/nrow(mnist_test) *100
+#Note: Both test & train datasets have uniform & similar distribution of each digit
+
+#checking missing value
+sapply(mnist, function(x) sum(is.na(x)))  #Have 1 missing value row in train dataframe
+sapply(mnist_test, function(x) sum(is.na(x))) #No missing values found in test dataframe
+
+#Removing Missing values from training(mnist) dataframe
+mnist[is.na(mnist)] <- 0
+
+#Visualising a digit in data
+digit <- matrix(as.numeric(mnist[7,-1]), nrow = 28)
+image(digit, col = grey.colors(255))
+
+##Exploratory Data Analysis
+mnist_copy<-mnist
+mnist_copy$intensity <- apply(mnist_copy[,-1], 1, mean) #takes the mean of each row in training set
+
+intbylabel <- aggregate(mnist_copy$intensity, by = list(mnist_copy$Digit), FUN = mean)
+
+plot <- ggplot(data=intbylabel, aes(x=Group.1, y = x)) + geom_bar(stat="identity")
+plot + scale_x_discrete(limits=0:9) + xlab("digit label") + ylab("average intensity")
+
+#Checking distribution of few digits
+mnist_copy$label <- as.factor(mnist_copy$Digit)
+p1 <- qplot(subset(mnist_copy, label ==2)$intensity, binwidth = .75, xlab = "Intensity Hist for 2")
+p2 <- qplot(subset(mnist_copy, label ==5)$intensity, binwidth = .75, xlab = "Intensity Hist for 5")
+p3 <- qplot(subset(mnist_copy, label ==7)$intensity, binwidth = .75, xlab = "Intensity Hist for 7")
+p4 <- qplot(subset(mnist_copy, label ==9)$intensity, binwidth = .75, xlab = "Intensity Hist for 9")
+grid.arrange(p1, p2, p3,p4, ncol = 2)
+
+#Distribution of 7 is less 'normal' with multiple peaks, perhaps there are different ways people tend to write seven
+mnist_copy_7 <- mnist_copy[mnist_copy$Digit == 7, ]
+flip <- function(matrix){
+  apply(matrix, 2, rev)
+}
+#Shows 9 diffrent ways people write digit 7 
+par(mfrow=c(3,3))
+for (i in 10:18){
+  digit <- flip(matrix(rev(as.numeric(mnist_copy_7[i,-c(1, 786)])), nrow = 28)) #shows different styles of digit 
+  image(digit, col = grey.colors(255))
+}
+
+#Making our target class to factor
+mnist$Digit <-factor(mnist$Digit)
+str(mnist$Digit)
+```
+
+```{r}
+##--------------------------------------Principal Component Analysis(PCA)--------------------------------------------
+#Reducing features using PCA
+mnist_norm<-as.matrix(mnist[,-1])/255
+mnist_norm_cov <- cov(mnist_norm)
+pca <- prcomp(mnist_norm_cov)
+trainlabel <- mnist[,1]
+
+#Checking relationship between number of Pricipal Components & Variance
+vexplained <- as.data.frame(pca$sdev^2/sum(pca$sdev^2))
+vexplained <- cbind(c(1:784),vexplained,cumsum(vexplained[,1]))
+colnames(vexplained) <- c("No_of_Principal_Components","Individual_Variance_Explained","Cumulative_Variance_Explained")
+
+#Plot between Cumulative Variance & Principal Components
+plot(vexplained$No_of_Principal_Components,vexplained$Cumulative_Variance_Explained, xlim = c(0,150),type='b',pch=16,xlab = "Principal Componets",ylab = "Cumulative Variance Explained",main = 'Principal Components vs Cumulative Variance Explained')
+
+#Table showing Cumulative Variance & Principal Components
+vexplainedsummary <- vexplained[seq(0,150,5),]
+vexplainedsummary
+#Note: Variance till Number of Principal Components 45 is 0.9916936
+
+##Applying SVM on training set and calculating accuracy
+library(e1071)
+mnist_final <- as.matrix(mnist[,-1]) %*% pca$x[,1:45]
+trainlabel <- as.factor(trainlabel)
+svm.model.final <- svm(mnist_final,trainlabel,cost = 2)
+predictionfinaltrain <- predict(svm.model.final,mnist_final)
+correcttrainfinal <- predictionfinaltrain==trainlabel
+Accuracytrainfinal <- (sum(correcttrainfinal)/nrow(mnist_final))*100
+Accuracytrainfinal #99.77 %
+
+##Applying PCA to test set
+testlabel <- mnist_test[,1]
+testfinal <- as.matrix(mnist_test[,-1]) %*% pca$x[,1:45]
+predictionfinaltest <- predict(svm.model.final,testfinal)
+correcttestfinal <- predictionfinaltest==testlabel
+Accuracytestfinal <- (sum(correcttestfinal)/nrow(testfinal))*100
+Accuracytestfinal #97.25 %
+
+```

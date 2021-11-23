@@ -1,0 +1,280 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "11/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+
+run = TRUE
+
+  
+  if (run)
+  {
+rawfile <-read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST.csv", header = T)
+  }
+
+
+```
+```{r}
+dfNumbers <- as.data.frame(apply(rawfile, 2, as.numeric))
+dfDivided <- as.data.frame(dfNumbers * 1/255)
+dfDivided$label = round(dfDivided$label*255, 1)
+```
+
+1. Using the training.csv file, plot representations of the first 10 images to understand the data format. Go ahead and divide all pixels by 255 to produce values between 0 and 1. (This is equivalent to min-max scaling.) (5 points)
+
+
+
+```{r}
+
+for (i in 1:10)
+{
+im2<-matrix((rawfile[i,2:ncol(rawfile)]), nrow=28, ncol=28) 
+im_numbers <- apply(im2, 2, as.numeric)
+image(1:28, 1:28, im_numbers, col=gray((0:255)/255))
+}
+
+```
+
+ What is the frequency distribution of the numbers in the dataset? (5 points)
+
+```{r}
+
+hist(dfDivided$label)
+```
+5. For each number, provide the mean pixel intensity. What does this tell you? (5 points)
+
+```{r}
+
+dfMeans <- dfDivided
+dfMeans$Mean <- apply(dfMeans[,2:785], 1, mean)
+
+dfMeans2 <- dfMeans %>%
+  group_by(label) %>%
+  summarize(NumMean = mean(Mean))
+dfMeans2
+```
+
+Most numbers are grouped together around 12-15.  However, the one takes up much less ink space, and the 0 takes up a little more.
+
+6. Reduce the data by using principal components that account for 95% of the variance. How many components did you generate? Use PCA to generate all possible components (100% of the variance). How many components are possible? Why? (5 points)
+
+```{r}
+# All data is the same level so no need to scale
+
+
+dfMean3 <- dfMeans %>%
+  group_by(label) %>%
+  summarize_all(mean)
+dfMean3
+
+dfMean3$label <- as.character(dfMean3$label)
+dfMean4 <- as.data.frame(dfMean3[,-1], row.names=dfMean3[,1])
+```
+
+```{r}
+
+for (i in 1:10)
+{
+im3<-matrix((dfMean4[i,1:ncol(dfMean4)]), nrow=28, ncol=28) 
+im3 <- apply(im3, 2, as.numeric)
+image(1:28, 1:28, im3, col=gray((0:255)/255))
+}
+
+```
+
+
+```{r}
+#############Prepare for Image Processing#######################
+library(tidyverse)
+data("USArrests")
+
+dfData <- dfMeans %>%
+  select(-label)
+
+USArrests <- dfData
+
+
+#calculate principal components
+results <- prcomp(USArrests, scale = FALSE)
+
+```
+
+```{r}
+
+#reverse the signs
+results$rotation <- -1*results$rotation
+#display principal components
+#results$rotation
+
+#reverse the signs of the scores
+results$x <- -1*results$x
+```
+```{r}
+
+#biplot(results, scale = 0)
+```
+
+```{r}
+
+#head(USArrests[order(-USArrests$Murder),])
+
+#calculate total variance explained by each principal component
+dfVariance <- as.matrix(results$sdev^2 / sum(results$sdev^2))
+sum = 0
+ToComp=0
+
+for (i in 1:42000)
+{
+  sum = sum + dfVariance[i,1]
+  if (sum>.95)
+  {
+    ToComp = i
+    break
+  }
+}
+```
+
+```{r}
+#calculate total variance explained by each principal component
+var_explained = results$sdev^2 / sum(results$sdev^2)
+```
+
+```{r}
+
+
+#create scree plot
+qplot(c(1:785), var_explained) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Variance Explained") +
+  ggtitle("Scree Plot") +
+  ylim(0, 1)
+
+```
+
+```{r}
+# reconstruct matrix
+restr <- results$x[,1:ToComp] %*% t(results$rotation[,1:ToComp])
+
+```
+```{r}
+
+
+par(mfcol=c(1,2), mar=c(1,1,2,1))
+
+for (i in 1:10)
+{
+
+im2<-matrix((rawfile[i,2:ncol(rawfile)]), nrow=28, ncol=28) 
+im_numbers <- apply(im2, 2, as.numeric)
+image(1:28, 1:28, im_numbers, col=gray((0:255)/255))
+
+rst <- matrix(data=rev(restr[i,]), nrow=28, ncol=28)
+image(1:28, 1:28, rst, col=gray((0:255)/255))
+
+}
+
+
+```
+
+
+Multinomial model
+
+```{r}
+# Loading the library
+library(rattle.data)
+# Loading the wine data
+data(wine)
+```
+```{r}
+
+# Checking the structure of wine dataset
+str(wine)
+```
+
+```{r}
+
+
+# Loading the dplyr package
+library(dplyr)
+
+# Using sample_frac to create 70 - 30 slipt into test and train
+train <- sample_frac(wine, 0.7)
+sample_id <- as.numeric(rownames(train)) # rownames() returns character so as.numeric
+test <- wine[-sample_id,]
+```
+```{r}
+
+
+# Setting the basline 
+train$Type <- relevel(train$Type, ref = "3")
+```
+
+```{r}
+
+# Loading the nnet package
+require(nnet)
+# Training the multinomial model
+multinom.fit <- multinom(label ~ ., data=dfDivided[c(1:785)], MaxNWts =10000000)
+
+# Checking the model
+summary(multinom.fit)
+
+```
+
+```{r}
+
+## extracting coefficients from the model and exponentiate
+exp(coef(multinom.fit))
+
+```
+
+```{r}
+
+
+head(probability.table <- fitted(multinom.fit))
+```
+
+
+```{r}
+
+
+# Predicting the values for train dataset
+train$precticed <- predict(multinom.fit, newdata = train, "class")
+
+# Building classification table
+ctable <- table(train$Type, train$precticed)
+
+# Calculating accuracy - sum of diagonal elements divided by total obs
+round((sum(diag(ctable))/sum(ctable))*100,2)
+```
+
+```{r}
+
+
+# Predicting the values for train dataset
+test$precticed <- predict(multinom.fit, newdata = test, "class")
+
+# Building classification table
+ctable <- table(test$Type, test$precticed)
+
+# Calculating accuracy - sum of diagonal elements divided by total obs
+round((sum(diag(ctable))/sum(ctable))*100,2)
+```
+
+
+
+
+
+

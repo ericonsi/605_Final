@@ -1,0 +1,130 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "8/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(openintro)
+library(tinytex)
+library(tidyverse)
+library(magrittr)
+library(RODBC)
+library(gridExtra)
+library(psych)
+library(moments)
+library(kableExtra)
+```
+
+## Linear Regression in R
+
+__*Using the “cars” dataset in R, build a linear model for stopping distance as a function of speed and
+replicate the analysis of your textbook chapter 3 (visualization, quality evaluation of the model, and
+residual analysis.)*__
+
+### Get the data
+
+```{r}
+dfCars <-cars
+
+```
+### Visualize
+
+```{r}
+ggplot(dfCars, aes(speed, dist)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Scatterplot of stopping distance vs speed")
+
+```
+
+We can see that stopping distance tends to increase as speed increases. The residuals appear to have a non-normal shape - many small residuals below the line and a few large ones above.  This suggests that the residuals will skew left (more negative values)
+
+### Evaluate
+
+1. Run the regression:
+```{r}
+
+m1 <- lm(dist ~ speed, data = dfCars)
+summary(m1)
+
+```
+
+2. look at the residuals (we will do more residual analysis in the "residuals" section)
+
+In a good model the residuals tend to be distributed normally.  We can do a spot check of this condition by examining the median value, which should be near zero, and the min/max and for first and third quartile values, which should have similar magnitudes within each pair. This model is not perfect, but suggests a relatively normal distribution with maybe a few outliers.
+
+3. Look at the coefficient vs the standard error
+
+A rule of thumb is to seek a standard error that is at least five to ten times smaller than the corresponding coefficient. Our Standard error is about 10 times smaller than our coefficient.  This means there is not a lot of variability in the slope estimate.  The intercept is only 3 times that of its standard error - so we might expect more variability here.
+
+4. look at the p values
+
+The p value for speed is nearly 0.  For the intercept it is .01.  These suggest that the relationship is significant.  If the null hypotheses were true, we would see results like this (or more extreme) 1% or less of the time - so we reject the null hypothesis.
+
+5. Look at the residual standard error
+
+This gives us another shorthand look at the normality of the residuals. The residual standard error is ~15 so we can say that speed predicts stopping distance with about a 15 foot error on average. According to the 68-95-99 rule, 68% of the values should have errors of 15 or less. The first and third quantiles capture 50% of the errors, and should be about 1.5 times the standard residual error. However, they comprise about 20 feet - so we may have some issues with normality.
+
+6. Look at the R Squared and Adjusted R Squared
+
+According to the R Squareds, over 60 % in the variability of stopping distance is explained by speed.  This is indicative of a strong correlation.  
+
+
+### Residual Analysis
+
+```{r}
+
+ggplot(data = m1, aes(x = .resid)) +
+  geom_histogram() +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals")
+
+ggplot(data = m1, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m1, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+
+```{r}
+dfCars_OutliersRemoved <- dfCars %>%
+  filter(row.names(dfCars) !="23" & row.names(dfCars) != "35" & row.names(dfCars) != "49")
+
+m1 <- lm(dist ~ speed, data = dfCars_OutliersRemoved)
+summary(m1)
+
+ggplot(data = m1, aes(x = .resid)) +
+  geom_histogram() +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals")
+
+ggplot(data = m1, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m1, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+

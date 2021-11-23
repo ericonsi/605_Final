@@ -1,0 +1,328 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "8/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(openintro)
+library(tinytex)
+library(tidyverse)
+library(magrittr)
+library(RODBC)
+library(gridExtra)
+library(psych)
+library(moments)
+library(kableExtra)
+```
+### A Problemmatic Flight Arrival Delay Calculator
+
+Your colleagues do a lot of flying and you are tasked with developing a model so that you can predict any flight arrival delay based on a departure delay. That way they can call the delay in before they get on the plane.
+
+Using the nycflights database of 30,000 flights from New York airports, you decide to run a regression on arrival delay and departure delay.  First you perform a scatterplot and it looks good:
+
+
+```{r}
+
+ggplot(nycflights, aes(dep_delay, arr_delay)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Arrival delays vs departure delays")
+
+```
+
+Then you run the regression.  Not surprisingly, arrival and departure delay shows a very strong correlation, with an r-squared of .84.  
+
+1. Run the regression:
+```{r}
+
+m <- lm(arr_delay ~ dep_delay, data = nycflights)
+summary(m)
+
+```
+The coefficients line up nicely to give you a simple rule of thumb which you pass on to your manager - *arrival delays are typically the same as departure delays minus 5 minutes of in-air catch-up time.*
+
+A week later you're in trouble. Your colleagues are reporting lots of small departure delays that don't seem to relate to their arrival delay at all. And lots of long arrival delay even thought the plane left on time. Your calculator only seems realiable when there is a very long departure day, resulting in a very long arrival delay.  What happened?
+
+You decide to try removing outliers.  
+
+```{r}
+
+dfFlights <-nycflights %>%
+  filter(dep_delay<550)
+
+ggplot(dfFlights, aes(dep_delay, arr_delay)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Arrival delays vs departure delays")
+
+m1 <- lm(arr_delay ~ dep_delay, data = dfFlights)
+summary(m1)
+
+
+```
+
+But the results are almost exactly the same.
+
+You look at histograms of the two variables, and find something surprising - most flights arrive or leave a little early:
+
+```{r}
+
+ggplot(dfFlights, aes(dep_delay)) +
+  geom_histogram(bins=100)
+
+ggplot(dfFlights, aes(arr_delay)) +
+  geom_histogram(bins=100)
+
+```
+
+You reason that flights that arrive early or on time might be a different breed of flight altogether from those that arrive late, so you eliminate them from the analysis:
+
+```{r}
+
+dfFlights2 <-nycflights %>%
+  filter(arr_delay>0)
+
+ggplot(dfFlights2, aes(dep_delay, arr_delay)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Arrival delays vs departure delays")
+
+m1 <- lm(arr_delay ~ dep_delay, data = dfFlights)
+summary(m1)
+
+
+```
+This eliminates more than half the flights but does nothing to change your analysis.
+
+Since the model seems more precise at higher levels of departure delay, the place to look is the residuals.
+
+A residual analysis shows clearly what the problem is: 
+
+```{r}
+
+dmean <- 0
+dse <- summary(m1)$sigma  
+
+qqnorm(summary(m1)$resid)
+
+ggplot(data = m1, aes(x = .resid)) +
+  geom_histogram(aes(y = ..density..)) +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals") +
+  stat_function(fun = dnorm, args = c(mean = dmean, sd = dse), col = "tomato")
+
+ggplot(data = m1, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m1, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+
+```{r}
+
+dmean <- 0
+dse <- summary(m1)$sigma  
+
+qqnorm(summary(m1)$resid)
+
+ggplot(data = m1, aes(x = .resid)) +
+  geom_histogram(aes(y = ..density..)) +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals") +
+  stat_function(fun = dnorm, args = c(mean = dmean, sd = dse), col = "tomato")
+
+ggplot(data = m1, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m1, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+
+
+
+```{r}
+#dfOutliersRemoved <- nycflights %>%
+#  filter(abs(dep_delay)>=120 & abs(arr_delay)>=120)
+
+dfOutliersRemoved <- dfFlights %>%
+  filter(abs(dep_delay)<=15)
+
+m2 <- lm(arr_delay ~ dep_delay, data = dfOutliersRemoved)
+summary(m2)
+
+ggplot(data = m2, aes(x = .resid)) +
+  geom_histogram() +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals")
+
+ggplot(data = m2, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m2, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+Coefficient estimators and predictions are known to be reasonably robust to departures from this assumption but inference (e.g. confidence intervals) less so. 
+
+It is biasd and heteroscedastic
+
+```{r}
+
+q <- matrix(nrow = 260, ncol=2)
+
+for (i in 1:260) 
+{
+  dfOutliersRemoved <- dfFlights %>%
+  filter(dep_delay+20>i)
+m2 <- lm(arr_delay ~ dep_delay, data = dfOutliersRemoved)
+s1 <- summary(m2)
+
+q[i,1] = i - 20
+q[i,2] = s1$r.squared
+
+}
+
+q <- as.data.frame(q)
+
+ggplot(q, aes(x=V1, y=V2)) +
+  geom_line()
+
+```
+
+
+
+
+```{r}
+dfFlights1 <- dfFlights %>%
+  mutate(arr_delay_plus20 = (arr_delay>=20)*1) %>%
+  filter(dep_delay <50)
+
+
+dfSum <- dfFlights1 %>%
+  group_by(dep_delay) %>%
+  summarise("percent_plus20" = sum(arr_delay_plus20)/n())
+
+ggplot(dfSum, aes(x=dep_delay, y=percent_plus20)) +
+  geom_line()
+
+
+```
+```{r}
+
+library(lmtest)
+bptest(m1)
+
+```
+
+```{r}
+#weighted
+wt <- 1 / lm(abs(m1$residuals) ~ m1$fitted.values)$fitted.values^2
+dfWt <- as.data.frame(wt)
+
+m2 <- lm(arr_delay ~ dep_delay, data = dfFlights, weights=wt)
+summary(m2)
+
+dmean <- 0
+dse <- summary(m2)$sigma  
+
+qqnorm(summary(m2)$resid)
+
+ggplot(data = m2, aes(x = .resid)) +
+  geom_histogram(aes(y = ..density..)) +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals") +
+  stat_function(fun = dnorm, args = c(mean = dmean, sd = dse), col = "tomato")
+
+ggplot(data = m2, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m2, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+
+```{r}
+
+dfFlights1 <- dfFlights %>%
+  filter(dep_delay>200)
+
+m2 <- lm(arr_delay ~ dep_delay, data = dfFlights1)
+summary(m2)
+
+
+dmean <- 0
+dse <- summary(m2)$sigma  
+
+ggplot(data = m2, aes(x = .resid)) +
+  geom_histogram(aes(y = ..density..)) +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals") +
+  stat_function(fun = dnorm, args = c(mean = dmean, sd = dse), col = "tomato")
+
+
+ggplot(data = m2, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m2, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+dfResid <- as.data.frame(summary(m2)$resid)
+dfNew <- cbind(dfResid, dfFlights1)
+
+dfNew$predicted <- -5.77 + 1.01*dfNew$dep_delay
+
+
+ggplot(data=dfNew, aes(
+    x = arr_delay,
+    y = predicted
+  )) +
+  geom_point() +
+  ggtitle("4. Actual vs Predicted")
+
+```
+```
+

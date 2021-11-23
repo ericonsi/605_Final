@@ -1,0 +1,189 @@
+---
+title: "Eric_Hirsch_605_Assignment_13"
+author: "Eric Hirsch"
+date: "11/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+1. __*Use integration by substitution to solve the integral below.*__
+
+$$
+\int { 4{ e }^{ -7x }dx } 
+$$
+
+We know that:
+$$
+\int {e^xdx = e^x + C}
+$$
+
+If we set u to -7x, then du = -7dx
+
+So now we have: 
+$$
+\int { 4{ e }^{ -7x }dx }\\
+4 \int { { e }^{ -7x }dx } \\
+\frac{-4}{7} \int { { e }^{ u }du } \\
+\frac{-4}{7}e^{u}+c\\
+\frac{-4}{7}e^{-7x}+c
+$$
+
+
+
+2. __*Biologists are treating a pond contaminated with bacteria. The level of contamination is changing at a rate of*__
+
+$$
+\frac{dN}{dt}=\frac{-3150}{t^{4}}-220
+$$
+__*bacteria per cubic centimeter per day, where t is the number of days since treatment began. Find a function N( t ) to estimate the level of contamination if the level after 1 day was 6530 bacteria per cubic centimeter.*__
+
+This is simply a matter of integrating the rate function.  The level after one day will allow us to find the constant.
+
+$$
+ \int {(-3150{t^{-4}}-220)dt}\\ = 
+  -1/3(-3150t)^{-3}-220t+c\\ =
+{1050}{t^{-3}}-220t+c
+$$
+
+Now we solve for c:
+
+$$
+\frac{1050}{1^{3}}-220(1)+c=6350\\
+c = 6530-1050+220\\
+c=5700
+$$
+
+So here is the function:
+
+$$
+N(t)=  \frac{1050}{t^{3}}-220t+5700
+$$
+
+
+
+ 
+3. Find the total area of the red rectangles in the figure below, where the equation of the line is f ( x ) = 2x - 9.
+
+We can do this a numbeer of ways, but since it's a calculus assignment we'll integrate. We assume the interval is 4.5 to 8.5 from the graph (although this isn't 100% certain):
+
+
+$$
+\int _{ 4.5 }^{ 8.5} \ 2x-9 \ { dx }\\
+$$
+Integral:
+$$x^2 - 9x$$
+Thus:
+$$(8.5^2 - 9(8.5)) - (4.5^2-9(4.5)) = 16$$
+4. __*Find the area of the region bounded by the graphs of the given equations.*__
+
+$$
+y=x^{2}-2x-2\\
+y=x+2
+$$
+For this question first we find the points of intersection:
+$$
+x^{2}-2x-2=x+2\\
+x^{2}-3x-4=0\\
+(x-4)(x+1)=0\\
+$$
+x=4 and x=-1.
+
+So we need to subtract the area under the upside down parabola from all the area under the line - this will give us the area within the parabola.
+
+There are many ways to get the area under the line - we could do 1*5 (the rectangular part of the area) plus 25/2 (The triangular part of the area.)  This gives us 17.5.
+
+Now we subtract:
+
+```{r}
+int2 <- function(x) {(x^2-2*x-2)}
+integrate(int2, lower = -1, upper = 4)
+```
+17.5 - -3.33333 = 20.8333333
+
+__*5. A beauty supply store expects to sell 110 flat irons during the next year. It costs 3.75 to store one flat iron for one year. There is a fixed cost of 8.25 for each order. Find the lot size and the number of orders per year that will minimize inventory costs.*__
+
+I think we need to make some assumptions here about rates of purchase. Setting n = # of orders, we will assume that storage costs are (3.75*110)/n - in other words, items bought for sale remain in the store until the next order and are bought on the day of the new order.
+
+Thus, 
+
+$$
+T=8.25n + \frac{3.75*110}{n}\\
+$$
+This is a minimization problem, so we take the first derivative and set to 0:
+
+$$
+T'=8.25 + -1(\frac{3.75*110}{n^2}) = 0\\
+8.25*x{^2} = (3.75*110)\\
+x{^2} = (3.75*110)/8.25\\
+x = sqrt((3.75*110)/8.25) = ~ 7
+$$
+This gives us around 7 lots, with around (110/7 = 16) irons per lot.
+
+6. __*Use integration by parts to solve the integral below*__
+
+$$
+\int { ln(9x)x^{6}dx } 
+$$
+
+To integrate by parts we use this formula:
+
+$$
+uv-\int vdu \\
+$$
+We will set u = ln(9x) and we can set dv = x^6.  Now we need du and v:
+
+$$
+u=ln(9x)\\
+du=\frac{1}{x}dx\\
+$$
+
+Now we calculate v by integrating dv:
+$$
+dv=x^{6}\\
+v=\frac{1}{7}x^{7}
+$$
+
+This gives us:
+
+$$
+\frac{x^{7}ln(9x)}{7}-\int \frac{1}{7}x^{7}\frac{1}{x}dx\\
+$$
+So now we simplify.  To make the notation easier I'm going to set the first element to q:
+
+$$
+q = \frac{x^{7}ln(9x)}{7}
+$$
+So now we have:
+$$
+q-\int \frac{x^6}{7}dx\\
+q-\frac{1}{7}\int x^{6}dx\\
+q-\frac{1}{7}(\frac{x^{7}}{7})+C\\
+q-\frac{x^{7}}{49}+C\\
+\frac{x^{7}ln(9x)}{7}-\frac{x^{7}}{49}+C\\
+\frac{1}{7}({x^{7}ln(9x)}-\frac{x^{7}}{7})+C
+$$
+
+__*7.   Determine whether f ( x ) is a probability density function on the interval 1, e^6*__
+
+$$
+f(x)=\frac{1}{6x}
+$$
+
+A probability density function will have an integral of 1 and be positive for all possible values - so that is what we are testing here.  Positivity is guaranteed because the interval is positive and there are no negative signs in the function.  So now we integrate:
+
+
+
+$$
+\int _{ 1 }^{ { e }^{ 6 } }{ \frac { 1 }{ 6x } dx } \\
+\frac{1}{6} \int _{ 1 }^{ { e }^{ 6 } }{ \frac { 1 }{ x } dx } \\
+$$
+Here we use R to generate the integral:
+
+```{r}
+int2 <- function(x) {1/x}
+integrate(int2, lower = 1, upper = exp(1)^6)
+```
+
+Because 1/6*6 = 1, then the distribution can be regarded as a probability density function.

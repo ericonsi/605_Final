@@ -1,0 +1,589 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "11/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load libraries
+library(tidymodels)
+library(vip)
+library(tidyverse)
+library(lmtest)
+library(skimr)
+```
+
+```{r}
+home_sales <- read.csv("D:\\RStudio\\CUNY_605\\Final\\housing\\train.csv", header = TRUE)
+home_kaggle_test <- read.csv("D:\\RStudio\\CUNY_605\\Final\\housing\\test.csv", header = TRUE)
+home_submit <- read.csv("D:\\RStudio\\CUNY_605\\Final\\housing\\sample_submission.csv", header = TRUE)
+```
+```{r}
+
+head(home_sales, 10)
+dim(home_sales)
+glimpse(home_sales)
+summary(home_sales)
+skim(home_sales)
+```
+
+
+```{r}
+dfSelectedCols <- home_sales %>%
+  dplyr::select(SalePrice, GrLivArea, TotRmsAbvGrd, YearBuilt, YrSold)
+
+library(ResourceSelection)
+kdepairs(dfSelectedCols)
+```
+
+```{r}
+ggplot(home_sales, aes(y=SalePrice, x=LotArea, color = GarageArea)) +
+  geom_point() +
+    stat_smooth(method = "lm", se = FALSE)
+
+ggplot(home_sales, aes(y=SalePrice, x=GarageArea)) +
+  geom_point() +
+    stat_smooth(method = "lm", se = FALSE)
+#would need to scale to do 2 on one
+
+```
+
+```{r}
+dfSelectedCols2 <- home_sales %>%
+  dplyr::select(SalePrice, GrLivArea, YrSold)
+
+corMat <- cor(dfSelectedCols2)
+corMat
+```
+
+```{r}
+
+library(Hmisc)
+res <- rcorr(as.matrix(dfSelectedCols2)) # rcorr() accepts matrices only
+
+# display p-values (rounded to 3 decimals)
+round(res$P, 3)
+
+```
+Family-wise error rate = $$1 – (1-α)^n$$ where 
+α: The significance level for a single hypothesis test
+n: The total number of tests
+
+```{r}
+alpha=.2
+num=3
+fwe <- 1 - (1-alpha)^num
+fwe
+```
+The probability of getting a type I error on at least one of the hypothesis tests is nearly 50% so I would be concerned about familywise error.
+
+```{r}
+precMat <- solve(corMat)
+precMat
+```
+```{r}
+
+cByp <- corMat %*% precMat
+pByc <- precMat %*% corMat
+
+library(matrixcalc)
+cByp_LU <- lu.decomposition(cByp)
+pByc_LU <- lu.decomposition(pByc)
+```
+```{r}
+L <- cByp_LU$L
+U <- cByp_LU$U
+print( L )
+print( U )
+print( L %*% U )
+print( cByp )
+```
+
+
+```{r}
+L <- pByc_LU$L
+U <- pByc_LU$U
+print( L )
+print( U )
+print( L %*% U )
+print( pByc )
+```
+
+```{r}
+hist(home_sales$SalePrice)
+
+```
+```{r}
+
+library(MASS)
+
+fit1 <- fitdistr(home_sales$SalePrice, "exponential")
+fit1
+```
+```{r}
+set.seed(1)
+simdata = rexp(n = 1000, rate = 5.527268e-06 )
+matrixdata =  matrix(simdata, nrow = 1000)
+means.exp = apply(matrixdata, 1, mean)
+
+par(mfcol=c(1,2), mar=c(1,1,2,1))
+
+hist(home_sales$SalePrice)
+hist(means.exp)
+
+```
+```{r}
+lambda <- 5.527268e-06
+prob <- 0.05
+# compute the quantile for Exponential  dist
+qexp(prob,rate=lambda)
+```
+```{r}
+prob <- 0.95
+# compute the quantile for Exponential  dist
+qexp(prob,rate=lambda)
+```
+
+```{r}
+
+t.test(home_sales$SalePrice)
+
+```
+```{r}
+
+quantile(home_sales$SalePrice, probs = c(0.05, 0.95))
+```
+#### Build a regression model
+
+```{r}
+m1 <- lm(SalePrice ~ GrLivArea, data=home_sales)
+summary(m1)
+plot(m1)
+
+```
+
+#### 1. Split the data
+
+a. get rid of columns that are mostly na
+
+```{r}
+
+home_sales2 <- home_sales %>%
+  dplyr::select_if(colSums(!is.na(.))>1200) 
+
+```
+
+remove utlities becasue it only has one value
+
+```{r}
+
+home_sales3 <- home_sales2 %>%
+  dplyr::select(-Utilities) %>%
+  dplyr::select(-Id)
+
+home_sales3 <- home_sales3 %>% select_if(is.numeric)
+home_kaggle_test <- home_kaggle_test %>% select_if(is.numeric)
+
+```
+
+
+```{r}
+
+set.seed(271)
+
+# Create a split object
+homes_split <- initial_split(home_sales3, prop = 0.75, 
+                             strata = SalePrice)
+
+# Build training data set
+homes_training <- homes_split %>% 
+                  training()
+
+# Build testing data set
+#homes_test <- homes_split %>% 
+              #testing()
+homes_test <- home_kaggle_test
+
+```
+Feature engineering
+
+
+```{r}
+homes_recipe <- recipe(SalePrice ~ ., data = homes_training) %>% 
+                step_YeoJohnson(all_numeric(), -all_outcomes()) %>% 
+                step_normalize(all_numeric(), -all_outcomes()) %>% 
+                step_dummy(all_nominal(), - all_outcomes())
+```
+Test it looks right
+
+```{r}
+
+homes_recipe %>% 
+  prep() %>% 
+  bake(new_data = homes_test)
+
+```
+specify a mode
+
+```{r}
+lm_model <- linear_reg() %>% 
+            set_engine('lm') %>% 
+            set_mode('regression')
+```
+
+create a workflow
+
+```{r}
+homes_workflow <- workflow() %>% 
+                  add_model(lm_model) %>% 
+                  add_recipe(homes_recipe)
+```
+
+Execute the workflow
+
+```{r}
+homes_fit <- homes_workflow %>% 
+             last_fit(split = homes_split)
+```
+
+Examine metrics
+```{r}
+homes_fit %>% collect_metrics()
+
+```
+Get test prediction
+
+```{r}
+# Obtain test set predictions data frame
+homes_results <- homes_fit %>% 
+                 collect_predictions()
+# View results
+homes_results
+```
+Plot r2
+```{r}
+ggplot(data = homes_results,
+       mapping = aes(x = .pred, y = SalePrice)) +
+  geom_point(color = '#006EA1', alpha = 0.25) +
+  geom_abline(intercept = 0, slope = 1, color = 'orange') +
+  labs(title = 'Linear Regression Results - Home Sales Test Set',
+       x = 'Predicted Selling Price',
+       y = 'Actual Selling Price')
+```
+Variable importance
+
+```{r}
+
+homes_training_baked <- homes_recipe %>% 
+                        prep() %>% 
+                        bake(new_data = homes_training)
+
+# View results
+homes_training_baked
+
+homes_lm_fit <- lm_model %>% 
+                fit(SalePrice ~ ., data = homes_training_baked)
+
+vip(homes_lm_fit)
+
+```
+Plots
+```{r}
+homes_lm_fit <- lm_model %>% 
+                fit(SalePrice ~ ., data = homes_training_baked)
+
+homes_fit %>% collect_metrics()
+tidy(homes_lm_fit)
+glance(homes_lm_fit)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+
+plot(homes_lm_fit$fit, 
+     pch = 16)
+```
+
+```{r}
+
+library("writexl")
+#write_xlsx(df, "C:\\Users\\Eric\\Desktop\\people.xlsx")
+```
+
+
+try again with log of y
+
+
+#### 1. Split the data
+
+
+
+```{r}
+
+set.seed(271)
+
+home_sales4 <- home_sales3 %>%
+  mutate(SalePrice = log(SalePrice))
+
+# Create a split object
+homes_split <- initial_split(home_sales4, prop = 0.75, 
+                             strata = SalePrice)
+
+# Build training data set
+homes_training <- homes_split %>% 
+                  training()
+
+# Build testing data set
+homes_test <- homes_split %>% 
+              testing()
+
+
+```
+Feature engineering
+
+
+```{r}
+homes_recipe <- recipe(SalePrice ~ ., data = homes_training) %>% 
+                step_YeoJohnson(all_numeric(), -all_outcomes()) %>% 
+                step_normalize(all_numeric(), -all_outcomes()) %>% 
+                step_dummy(all_nominal(), - all_outcomes())
+```
+Test it looks right
+
+```{r}
+
+print(homes_recipe$template)
+
+homes_recipe %>% 
+  prep() %>% 
+  bake(new_data = homes_test)
+
+```
+specify a mode
+
+```{r}
+lm_model <- linear_reg() %>% 
+            set_engine('lm') %>% 
+            set_mode('regression')
+```
+
+create a workflow
+
+```{r}
+homes_workflow <- workflow() %>% 
+                  add_model(lm_model) %>% 
+                  add_recipe(homes_recipe)
+```
+
+Execute the workflow
+
+```{r}
+homes_fit <- homes_workflow %>% 
+             last_fit(split = homes_split)
+```
+
+Examine metrics
+```{r}
+homes_fit %>% collect_metrics()
+
+```
+Get test prediction
+
+```{r}
+# Obtain test set predictions data frame
+homes_results <- homes_fit %>% 
+                 collect_predictions()
+# View results
+homes_results
+```
+Plot r2
+```{r}
+ggplot(data = homes_results,
+       mapping = aes(x = .pred, y = SalePrice)) +
+  geom_point(color = '#006EA1', alpha = 0.25) +
+  geom_abline(intercept = 0, slope = 1, color = 'orange') +
+  labs(title = 'Linear Regression Results - Home Sales Test Set',
+       x = 'Predicted Selling Price',
+       y = 'Actual Selling Price')
+```
+Variable importance
+
+```{r}
+
+homes_training_baked <- homes_recipe %>% 
+                        prep() %>% 
+                        bake(new_data = homes_training)
+
+# View results
+homes_training_baked
+
+homes_lm_fit <- lm_model %>% 
+                fit(SalePrice ~ ., data = homes_training_baked)
+
+vip(homes_lm_fit)
+
+```
+Plots
+```{r}
+homes_lm_fit <- lm_model %>% 
+                fit(SalePrice ~ ., data = homes_training_baked)
+
+homes_fit %>% collect_metrics()
+tidy(homes_lm_fit)
+glance(homes_lm_fit)
+summary(homes_lm_fit$fit)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+
+plot(homes_lm_fit$fit, 
+     pch = 16)
+```
+
+Try again with reduction of columns
+
+
+```{r}
+
+dfResults <- as.data.frame(tidy(homes_lm_fit)) %>%
+  filter(p.value<=.05) %>%
+  filter(term != "(Intercept)") %>%
+  arrange(desc(estimate))
+
+```
+```{r}
+
+vCols <- c("SalePrice", "Exterior2nd", "Condition2", "GarageCond", "MSZoning", "RoofStyle", "Street", "Condition1", "GrLivArea","Neighborhood", "TotalBsmtSF" , "SaleCondition", "BsmtExposure", "LotArea", "YearBuilt", "GarageCars")
+
+home_sales5 <- home_sales4 
+  #dplyr::select(vCols)
+
+set.seed(271)
+
+
+# Create a split object
+homes_split <- initial_split(home_sales5, prop = 0.75, 
+                             strata = SalePrice)
+
+# Build training data set
+homes_training <- homes_split %>% 
+                  training()
+
+# Build testing data set
+homes_test <- homes_split %>% 
+              testing()
+
+
+```
+Feature engineering
+
+
+```{r}
+homes_recipe <- recipe(SalePrice ~ ., data = homes_training) %>% 
+                step_YeoJohnson(all_numeric(), -all_outcomes()) %>% 
+                step_normalize(all_numeric(), -all_outcomes()) %>% 
+                step_dummy(all_nominal(), - all_outcomes())
+```
+Test it looks right
+
+```{r}
+
+homes_recipe %>% 
+  prep() %>% 
+  bake(new_data = homes_test)
+
+```
+specify a mode
+
+```{r}
+lm_model <- linear_reg() %>% 
+            set_engine('lm') %>% 
+            set_mode('regression')
+```
+
+create a workflow
+
+```{r}
+homes_workflow <- workflow() %>% 
+                  add_model(lm_model) %>% 
+                  add_recipe(homes_recipe)
+```
+
+Execute the workflow
+
+```{r}
+homes_fit <- homes_workflow %>% 
+             last_fit(split = homes_split)
+```
+
+Examine metrics
+```{r}
+homes_fit %>% collect_metrics()
+
+```
+Get test prediction
+
+```{r}
+# Obtain test set predictions data frame
+homes_results <- homes_fit %>% 
+                 collect_predictions()
+# View results
+homes_results
+```
+Plot r2
+```{r}
+ggplot(data = homes_results,
+       mapping = aes(x = .pred, y = SalePrice)) +
+  geom_point(color = '#006EA1', alpha = 0.25) +
+  geom_abline(intercept = 0, slope = 1, color = 'orange') +
+  labs(title = 'Linear Regression Results - Home Sales Test Set',
+       x = 'Predicted Selling Price',
+       y = 'Actual Selling Price')
+```
+Variable importance
+
+```{r}
+
+homes_training_baked <- homes_recipe %>% 
+                        prep() %>% 
+                        bake(new_data = homes_training)
+
+# View results
+homes_training_baked
+
+homes_lm_fit <- lm_model %>% 
+                fit(SalePrice ~ ., data = homes_training_baked)
+
+vip(homes_lm_fit)
+
+```
+Plots
+```{r}
+homes_lm_fit <- lm_model %>% 
+                fit(SalePrice ~ ., data = homes_training_baked)
+
+homes_fit %>% collect_metrics()
+
+tidy(homes_lm_fit)
+glance(homes_lm_fit)
+summary(homes_lm_fit$fit)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+
+plot(homes_lm_fit$fit, 
+     pch = 16)
+```
+
+```{r}
+df <- predict(homes_lm_fit, new_data = home_kaggle_test)
+df$.pred[is.na(df$.pred)]<-median(df$.pred,na.rm=TRUE)
+print(df)
+
+library("writexl")
+write_xlsx(df, "C:\\Users\\Eric\\Desktop\\people.xlsx")
+
+
+```
+

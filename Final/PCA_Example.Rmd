@@ -1,0 +1,82 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "11/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+run = FALSE
+
+  
+  if (run)
+  {
+rawfile <-read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST.csv", header = T)
+  }
+
+
+```
+```{r}
+#dfNumbers <- as.data.frame(apply(rawfile, 2, as.numeric))
+#dfDivided <- as.data.frame(dfNumbers * 1/255)
+#dfDivided$label = round(dfDivided$label*255, 1)
+```
+
+```{r}
+#############Prepare for Image Processing#######################
+library(tidyverse)
+data("USArrests")
+
+#calculate principal components
+results <- prcomp(USArrests, scale = FALSE)
+```
+```{r}
+
+#reverse the signs
+results$rotation <- -1*results$rotation
+
+#display principal components
+results$rotation
+
+#reverse the signs of the scores
+results$x <- -1*results$x
+head(results$x)
+```
+```{r}
+
+biplot(results, scale = 0)
+```
+
+```{r}
+
+#head(USArrests[order(-USArrests$Murder),])
+
+#calculate total variance explained by each principal component
+results$sdev^2 / sum(results$sdev^2)
+```
+
+```{r}
+#calculate total variance explained by each principal component
+var_explained = results$sdev^2 / sum(results$sdev^2)
+```
+
+```{r}
+
+
+#create scree plot
+qplot(c(1:785), var_explained) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Variance Explained") +
+  ggtitle("Scree Plot") +
+  ylim(0, 1)
+
+       
+```
+

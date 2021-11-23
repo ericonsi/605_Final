@@ -1,0 +1,94 @@
+---
+title: "Final"
+author: "Eric Hirsch"
+date: "11/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PageRank Questions
+
+#### Form the A matrix. Then, introduce decay and form the B matrix as we did in
+the course notes. (5 Points)
+
+Matrix A is given in the example and can be seen as analogous to as a Markov Chain transition matrix. The problem with this matrix is that one of the nodes (2) is absorbing so there will be issues with convergence (we eventually end up at 2 no matter what.)  We can handle this issue by giving the node an equal chance of ending up on any other node after you leave it.  Alternatively, we could give the node higher chances of returning to one of the nodes which connects to it. I am inclined to do the former, as there would be a great deal of variability in the likelihood a page that links to your node is a page your visitors would necessarily want to visit.
+
+```{r}
+A <- matrix(data = c(0,.5,.5,0,0,0,
+                     0,0,0,0,0,0,
+                     1/3,1/3,0,0,1/3, 0,
+                     0,0,0,0,.5,.5,
+                     0,0,0,.5,0,.5,
+                     0,0,0,1,0,0
+                     ), nrow = 6, byrow=T)
+
+A[2, ] <- rep(1/6, 6)
+A
+
+```
+Now we generate B, using the .85 from the original problem.  
+```{r}
+
+# 
+
+B <- (A*.85) + (0.15/6)
+B
+```
+##### Start with a uniform rank vector r and perform power iterations on B till convergence. That is, compute the solution r = Bn × r. Attempt this for a sufficiently large n so that r actually converges. (5 Points)
+
+```{r}
+# create a uniform rank vector assuming equal probability for every node
+r <- c(.166667,.166667,.166667,.166667,.166667,.166667)
+
+# Create a function to do the iterations
+iterate <- function(B, r, n) 
+  {
+    for (i in 1:n)
+  {
+    r <- crossprod(B, r)
+  }
+  return (crossprod(B, r))
+}
+ 
+# try out the function on different n
+iterate(B, r, 1)
+iterate(B, r, 10)
+iterate(B, r, 20) 
+iterate(B, r, 30)
+iterate(B, r, 40)
+
+```
+
+The matrix converges between the 30th and 40th iterations, at least to the 8th decimal point.
+
+#####  Compute the eigen-decomposition of B and verify that you indeed get an eigenvalue
+of 1 as the largest eigenvalue and that its corresponding eigenvector is the same
+vector that you obtained in the previous power iteration method. Further, this
+eigenvector has all positive entries and it sums to 1.(10 points)
+
+```{r, warning=FALSE}
+q <- eigen(t(B))
+q
+```
+The "1" eigenvalue is the first one. We need to divide the vector by its sum to normalize it - this gives us an identical vector to the iterations model.  Also, it has only positive values and by definition sums to 1 since we normalized it.
+
+```{r}
+e <- q$vectors[,1]
+e <- e/sum(e)
+e
+
+```
+
+##### 4. Use the graph package in R and its page.rank method to compute the Page Rank
+of the graph as given in A. Note that you don’t need to apply decay. The package
+starts with a connected graph and applies decay internally. Verify that you do get
+the same PageRank vector as the two approaches above. (10 points
+
+```{r}
+library(igraph)
+graph_A <- graph.adjacency(t(A), weighted = TRUE, mode = "directed") # WHY????
+pr_graph_A <- page.rank(graph_A)$vector
+```

@@ -1,0 +1,218 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "11/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+   
+#Assignment - MNIST dataset
+
+#-------------------------------------------Data Sourcing-----------------------------------------------------------
+#Loading Neccessary libraries
+library(kernlab)
+library(readr)
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+
+#Loading train & test data
+mnist2 <- read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST.csv",header=TRUE)
+```
+```{r}
+mnist <- mnist2[sample(nrow(mnist2), 5000), ]  
+colnames(mnist)[1]<-"Digit"
+mnist[is.na(mnist)] <- 0
+mnist_norm<-as.matrix(mnist[,-1])/255
+head(mnist)
+```
+1. Using the training.csv file, plot representations of the first 10 images to understand the data format. Go ahead and divide all pixels by 255 to produce values between 0 and 1. (This is equivalent to min-max scaling.) (5 points)
+
+```{r}
+
+for (i in 1:10)
+{
+im2<-matrix((mnist[i,2:ncol(mnist)]), nrow=28, ncol=28) 
+im_numbers <- apply(im2, 2, as.numeric)
+image(1:28, 1:28, im_numbers, col=gray((0:255)/255))
+}
+
+```
+
+2. What is the frequency distribution of the numbers in the dataset? (5 points)
+
+```{r}
+hist(mnist$Digit)
+```
+
+5. For each number, provide the mean pixel intensity. What does this tell you? (5 points)
+
+```{r}
+
+dfMeans <- mnist
+dfMeans$Mean <- apply(dfMeans[,2:785], 1, mean)
+
+dfMeans2 <- dfMeans %>%
+  group_by(Digit) %>%
+  summarize(NumMean = mean(Mean))
+dfMeans2
+```
+
+```{r}
+#PCA
+mnist_norm_cov <- cov(mnist_norm)
+pca <- prcomp(mnist_norm_cov)
+
+#Checking relationship between number of Pricipal Components & Variance
+vexplained <- as.data.frame(pca$sdev^2/sum(pca$sdev^2))
+vexplained <- cbind(c(1:784),vexplained,cumsum(vexplained[,1]))
+colnames(vexplained) <- c("No_of_Principal_Components","Individual_Variance_Explained","Cumulative_Variance_Explained")
+
+#Plot between Cumulative Variance & Principal Components
+plot(vexplained$No_of_Principal_Components,vexplained$Cumulative_Variance_Explained, xlim = c(0,150),type='b',pch=16,xlab = "Principal Componets",ylab = "Cumulative Variance Explained",main = 'Principal Components vs Cumulative Variance Explained')
+
+#Table showing Cumulative Variance & Principal Components
+vexplainedsummary <- vexplained[seq(0,150,5),]
+vexplainedsummary
+#Note: Variance till Number of Principal Components 45 is 0.9916936
+
+```
+
+```{r}
+
+# reconstruct matrix
+restr <- pca$x[,1:4] %*% t(pca$rotation[,1:4])
+
+# unscale and uncenter the data
+if(pca$scale != FALSE){
+  restr <- scale(restr, center = FALSE , scale=1/pca$scale)
+}
+if(all(pca$center != FALSE)){
+  restr <- scale(restr, center = -1 * pca$center, scale=FALSE)
+}
+
+for (i in 1:10)
+{
+
+par(mfcol=c(1,2), mar=c(1,1,2,1))
+    
+im2<-matrix((mnist[i,2:ncol(mnist)]), nrow=28, ncol=28) 
+im_numbers <- apply(im2, 2, as.numeric)
+image(1:28, 1:28, im_numbers, col=gray((0:255)/255))
+
+rst <- matrix(data=rev(restr[i,]), nrow=28, ncol=28)
+image(1:28, 1:28, rst, col=gray((0:255)/255))
+
+}
+
+```
+```{r}
+
+
+dfmnist <- as.data.frame(mnist)
+mnist3 <- dfmnist %>%
+  filter(Digit==8)
+
+#mnist4 <- mnist3[sample(nrow(mnist3), 5000), ]  
+colnames(mnist3)[1]<-"Digit"
+mnist3[is.na(mnist3)] <- 0
+
+
+mnist_norm4<-as.matrix(mnist3[,-1])/255
+
+mnist_norm_cov2 <- cov(mnist_norm4)
+pca2 <- prcomp(mnist_norm_cov2)
+
+#Reconstruct the result
+restr <- pca2$x[,1:4] %*% t(pca2$rotation[,1:4])
+
+par(mfcol=c(1,2), mar=c(1,1,2,1))
+
+for (i in 1:10)
+{
+
+im2<-matrix((mnist3[i,2:ncol(mnist3)]), nrow=28, ncol=28) 
+im_numbers <- apply(im2, 2, as.numeric)
+image(1:28, 1:28, im_numbers, col=gray((0:255)/255))
+
+rst <- matrix(data=rev(restr[i,]), nrow=28, ncol=28)
+image(1:28, 1:28, rst, col=gray((0:255)/255))
+
+}
+
+```
+
+```{r}
+
+# Loading the nnet package
+require(nnet)
+
+mnist <- mnist2[sample(nrow(mnist2), 50), ]  
+colnames(mnist)[1]<-"Digit"
+mnist[is.na(mnist)] <- 0
+mnist_norm<-as.matrix(mnist[,-1])/255
+
+# Training the multinomial model
+multinom.fit <- multinom(Digit ~ ., data=mnist[c(1:785)], MaxNWts =10000000)
+```
+```{r}
+
+# Checking the model
+#q <- summary(multinom.fit)
+
+```
+
+```{r}
+
+## extracting coefficients from the model and exponentiate
+exp(coef(multinom.fit))
+
+```
+
+```{r}
+
+
+head(probability.table <- fitted(multinom.fit))
+```
+
+
+```{r}
+
+train <- mnist
+
+# Predicting the values for train dataset
+train$precticed <- predict(multinom.fit, newdata = train, "class")
+
+# Building classification table
+ctable <- table(train$Type, train$precticed)
+
+# Calculating accuracy - sum of diagonal elements divided by total obs
+round((sum(diag(ctable))/sum(ctable))*100,2)
+```
+
+```{r}
+
+
+# Predicting the values for train dataset
+test$precticed <- predict(multinom.fit, newdata = test, "class")
+
+# Building classification table
+ctable <- table(test$Type, test$precticed)
+
+# Calculating accuracy - sum of diagonal elements divided by total obs
+round((sum(diag(ctable))/sum(ctable))*100,2)
+```
+
+
+
+
+
+
+
+

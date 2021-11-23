@@ -1,0 +1,136 @@
+---
+title: "Eric_Hirsch_605_Assignment2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+1. PROBLEM SET 1
+
+__1. Show that $A^T A \neq AA^T$ in general. (Proof and demonstration.)__
+
+Consider a two-by-two matrix A:  $\begin{bmatrix} a & b \\c & d\end{bmatrix}$ 
+
+Then $A^T$ = $\begin{bmatrix} a & c \\b & d\end{bmatrix}$
+
+Then for matrix $A^TA$ the number in the upper left of the matrix will be a$*$a + c$*$c.
+However, for matrix $AA^T$ the number in that position is a$*$a + b$*$b.  Therefore, the equivalence doesn't hold generally.
+
+Here is a demonstration:
+
+```{r}
+
+# Create a matrix
+
+A <- matrix(c(1,4,7,2), nrow=2)
+A
+
+#Find AT
+AT <- t(A)
+AT
+
+#Find ATA
+ATA <- AT %*% A
+ATA
+
+#Find AAT
+AAT <- A %*% AT
+AAT
+
+```
+
+__2. For a special type of square matrix A, we get $A^T A = AA^T$ . Under what conditions could this be true? (Hint: The Identity matrix I is an example of such a matrix).__
+
+The term for this matrix is "normal," which meets the conditions by definition. Examples include diagonal matrices such as the identity matrix, and symmetric matrices.  Since for a symmetric matrix $A = A^T$, then the conditions would clearly hold. In the above exercise we can see that a two-by-two matrix in which the elements in the b and c positions are equal would be normal - this would make A a symmetric matrix as shown below.
+
+```{r}
+
+# Create a matrix
+
+A <- matrix(c(1,4,4,2), nrow=2)
+A
+
+#Find AT
+AT <- t(A)
+AT
+
+#Find ATA
+ATA <- AT %*% A
+ATA
+
+#Find AAT
+AAT <- A %*% AT
+AAT
+
+```
+
+1. PROBLEM SET 2
+
+__Write an R function to factorize a square matrix A into LU or LDU, whichever you prefer.__
+
+We will factor the matrix A by iterating over its lower triangle elements. The task is to create U by zeroing out these elements, while at the same time building our L by replacing the corresponding lower triangle elements of an identity matrix.  
+
+The key to these calculations is "[the designated element]/[the element above it]" which I am calling 'q'.  To get U, we substitute -q at the proper location in an identity matrix and multiply it by A. This zeroes out the element. At the same time, we replace the lower triangle elements of an identity matrix with q until we have completed the lower triangle. 
+
+```{r}
+Factorize <- function(A)
+  {
+    
+    size <- nrow(A)
+    
+    #Initialize L as the identity matrix and U as the original matrix A
+    L <- diag(size)
+    U <- A
+    
+    #Iterate over the lower triangle elements of U
+    for (i in 2:size)
+      {
+        for(j in 1:(i - 1))
+          {
+          
+          # calculate the designated element divided by the element above it.
+            q <- U[i,j]/U[j,j]
+            
+            # Determine U and L using q
+            E <-  diag(size)
+            E[i, j] <- -q
+            U <- E %*% U
+            L[i, j] <- q
+        }
+    }
+    
+    RecombinedA <- L %*% U
+    return(list(L,U, RecombinedA))
+}
+```
+
+We can use 3x3 and 4X4 matrices as examples to test the function.
+
+3x3
+
+```{r}
+A <- matrix(c(4, -4, 6, 8, 10, 12, -1, 6, 6 ), nrow=3)
+
+result <- Factorize(A)
+
+print (c("L:", result[1]))
+print (c("U:", result[2]))
+print (c("L*U:", result[3]))
+A
+
+```
+
+4x4
+
+```{r}
+A <- matrix(c(4, -4, 6, 8, 10, 12, -1, 6, 6, 21,14,-3,-6,-2,1,26 ), nrow=4)
+
+result <- Factorize(A)
+
+print (c("L:", result[1]))
+print (c("U:", result[2]))
+print (c("L*U:", result[3]))
+A
+
+```

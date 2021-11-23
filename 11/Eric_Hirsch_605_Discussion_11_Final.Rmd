@@ -1,0 +1,160 @@
+---
+title: "Eric_Hirsch_605_Discussion_11"
+author: "Eric Hirsch"
+date: "11/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(openintro)
+library(tinytex)
+library(tidyverse)
+library(magrittr)
+library(RODBC)
+library(gridExtra)
+library(psych)
+library(moments)
+library(kableExtra)
+```
+### A Problemmatic Flight Arrival Delay Calculator
+
+Your colleagues do a lot of flying and you are tasked with developing a model so that you can predict any flight arrival delay based on a departure delay. That way they can call the delay in before they get on the plane.
+
+Using the nycflights database of 30,000 flights from New York airports, you decide to run a regression on arrival delay and departure delay.  First you perform a scatterplot and it looks good:
+
+
+```{r}
+
+ggplot(nycflights, aes(dep_delay, arr_delay)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Arrival delays vs departure delays")
+
+```
+
+Then you run the regression.  Not surprisingly, arrival and departure delay shows a very strong correlation, with an r-squared of .84.  
+
+```{r}
+
+m <- lm(arr_delay ~ dep_delay, data = nycflights)
+summary(m)
+
+```
+The coefficients line up nicely to give you a simple rule of thumb which you pass on to your manager - *arrival delays are typically the same as departure delays minus 5 minutes of in-air catch-up time.*
+
+__A week later you're in trouble.__ 
+
+Your colleagues are reporting lots of small departure delays that don't seem to relate to their arrival delay at all. And lots of long arrival delays even thought the plane left on time. Your calculator only seems reliable when there is a long departure day, resulting in a long arrival delay.  What happened?
+
+You decide to remove outliers.  
+
+```{r}
+
+dfFlights <-nycflights %>%
+  filter(dep_delay<550)
+
+ggplot(dfFlights, aes(dep_delay, arr_delay)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Arrival delays vs departure delays")
+
+m1 <- lm(arr_delay ~ dep_delay, data = dfFlights)
+summary(m1)
+
+
+```
+
+But the results are almost exactly the same.
+
+You look at histograms of the two variables, and find something surprising - most flights arrive or leave a little early:
+
+```{r}
+
+ggplot(dfFlights, aes(dep_delay)) +
+  geom_histogram(bins=100)
+
+ggplot(dfFlights, aes(arr_delay)) +
+  geom_histogram(bins=100)
+
+```
+
+You reason that flights that arrive early or on time might be a different breed of flight altogether from those that arrive late, so you eliminate them from the analysis:
+
+```{r}
+
+dfFlights2 <-nycflights %>%
+  filter(arr_delay>0)
+
+ggplot(dfFlights2, aes(dep_delay, arr_delay)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  ggtitle("Arrival delays vs departure delays")
+
+m1 <- lm(arr_delay ~ dep_delay, data = dfFlights)
+summary(m1)
+
+
+```
+This eliminates more than half the flights but does nothing to change your analysis.
+
+Since the model seems more precise at higher levels of departure delay, the place to look is the residuals.  A residual analysis shows clearly what the problem is: 
+
+```{r}
+
+dmean <- 0
+dse <- summary(m1)$sigma  
+
+ggplot(data = m1, aes(x = .resid)) +
+  geom_histogram(aes(y = ..density..)) +
+  xlab("Residuals") +
+  ggtitle("1. Histogram of residuals") +
+  stat_function(fun = dnorm, args = c(mean = dmean, sd = dse), col = "tomato")
+
+ggplot(data = m1, aes(sample = .resid)) +
+  stat_qq() + 
+  stat_qq_line() +
+  ggtitle("2. QQ plot of residuals")
+
+ggplot(data=m1, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+
+The distribution is heteroskedastic.  Small delays in departure see a very wide variance in arrival delays.  And the converse must also be true - large arrival delays must see a wide variance in departure delays.  However, large departure delays result in large arrival delays. When the model errs, it usually underestimates the arrival delay, and in cases where the error is large, it is almost always an underestimation. This all makes intuitive sense - there is little a flight can do to compensate for a large departure delay, since the time has already passed.  
+
+We can verify that the model does poorly for short delays by running the analysis for departure delays equal to or below 15 minutes:
+
+
+```{r}
+
+dfShort <- dfFlights %>%
+  filter(abs(dep_delay)<=15)
+
+m2 <- lm(arr_delay ~ dep_delay, data = dfShort)
+summary(m2)
+
+ggplot(data=m2, aes(
+    x = .fitted,
+    y = .resid
+  )) +
+  geom_jitter() +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+  ggtitle("3. Residuals vs Fitted Data")
+
+```
+
+The R squared has dropped to .10.  At this level of departure delay the data is homoskedastic.
+
+### Conclusion
+
+Diagnostic plots tell you not only that there may be problems with your model, but how they may manifest.  It would have been best to check them first before delivering the model.
