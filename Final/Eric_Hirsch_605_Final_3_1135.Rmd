@@ -16,12 +16,14 @@ library(vip)
 library(tidyverse)
 library(lmtest)
 library(skimr)
+library(mltools)
+library(psych)
 ```
 
 ```{r}
-home_sales <- read.csv("D:\\RStudio\\CUNY_605\\Final\\housing\\train.csv", header = TRUE)
-home_kaggle_test <- read.csv("D:\\RStudio\\CUNY_605\\Final\\housing\\test.csv", header = TRUE)
-home_submit <- read.csv("D:\\RStudio\\CUNY_605\\Final\\housing\\sample_submission.csv", header = TRUE)
+home_sales <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\train.csv", stringsAsFactors=TRUE, header = TRUE)
+home_kaggle_test <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\test.csv", stringsAsFactors=TRUE, header = TRUE)
+home_submit <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\sample_submission.csv", header = TRUE)
 ```
 ```{r}
 
@@ -186,9 +188,6 @@ home_sales3 <- home_sales2 %>%
   dplyr::select(-Utilities) %>%
   dplyr::select(-Id)
 
-home_sales3 <- home_sales3 %>% select_if(is.numeric)
-home_kaggle_test <- home_kaggle_test %>% select_if(is.numeric)
-
 ```
 
 
@@ -319,6 +318,10 @@ try again with log of y
 
 #### 1. Split the data
 
+Adjustments : 
+1. log of y
+2. eliminate na rows after eliminating mostly na columns
+3. fix one-hots to account for sparse columns
 
 
 ```{r}
@@ -326,7 +329,8 @@ try again with log of y
 set.seed(271)
 
 home_sales4 <- home_sales3 %>%
-  mutate(SalePrice = log(SalePrice))
+  mutate(SalePrice = log(SalePrice)) %>%
+  na.omit(SalePrice)
 
 # Create a split object
 homes_split <- initial_split(home_sales4, prop = 0.75, 
@@ -577,13 +581,153 @@ plot(homes_lm_fit$fit,
 ```
 
 ```{r}
-df <- predict(homes_lm_fit, new_data = home_kaggle_test)
-df$.pred[is.na(df$.pred)]<-median(df$.pred,na.rm=TRUE)
-print(df)
+#df <- predict(homes_lm_fit, new_data = home_kaggle_test)
+#df$.pred[is.na(df$.pred)]<-median(df$.pred,na.rm=TRUE)
+#print(df)
 
-library("writexl")
-write_xlsx(df, "C:\\Users\\Eric\\Desktop\\people.xlsx")
+#library("writexl")
+#write_xlsx(df, "C:\\Users\\Eric\\Desktop\\people.xlsx")
 
 
 ```
 
+Try again without tidymodels but using home_sales4 which already has log and na control
+
+1. scale
+2. one-hot
+3. run regression
+4. predict
+
+```{r}
+library(data.table)
+
+home_sales10 <- one_hot(as.data.table(home_sales4), dropCols=TRUE)
+home_sales11 <- as.data.frame(scale(home_sales10[-SalePrice]))
+
+home_sales12 <- home_sales10 %>%
+  dplyr::select_if(~ !any(is.na(.)))
+
+describe(home_sales12$SalePrice)
+
+```
+```{r}
+
+m1 = lm(SalePrice ~ ., data = home_sales12)
+summary(m1)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+plot(m1)
+
+```
+drop outliers
+
+```{r}
+
+
+
+```
+predict
+```{r}
+
+
+
+home_kaggle_sales2 <- home_kaggle_test %>%
+  dplyr::select_if(colSums(!is.na(.))>=1459) 
+
+library(data.table)
+
+home_kagglesales10 <- one_hot(as.data.table(home_kaggle_sales2), dropCols=TRUE)
+home_kagglesales11 <- as.data.frame(scale(home_kagglesales10))
+
+home_kagglesales12 <- home_kagglesales11 %>%
+  dplyr::select_if(~ !any(is.na(.)))
+
+#describe(home_kagglesales12)
+
+```
+```{r}
+library(janitor)
+cols <- janitor::compare_df_cols(home_sales12, home_kagglesales11)
+
+cols1 <- cols %>%
+  dplyr::filter(is.na(home_kagglesales11)) %>%
+  dplyr::filter(column_name != "SalePrice")
+
+cols2 <- as.vector(cols1$column_name)
+cols2
+
+home_sales13 <- home_sales12 %>%
+  dplyr::select(-cols2)
+
+```
+
+```{r}
+m2 = lm(SalePrice ~ ., data = home_sales13)
+summary(m2)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+plot(m2)
+```
+```{r}
+
+prediction <- as.data.frame(predict(m2, newdata = home_kagglesales11))
+prediction
+prediction <- exp(prediction)
+prediction
+
+
+
+```
+
+```{r}
+
+library("writexl")
+write_xlsx(prediction, "C:\\Users\\erico\\Desktop\\people2.xlsx")
+```
+
+Deal with overfit
+
+```{r}
+
+df <- as.data.frame(summary(m2)$coefficients[])
+df <- cbind(Coeffs = rownames(df), df)
+rownames(df) <- 1:nrow(df)
+
+df["p_value"] <- df[,5]
+
+cols3 <- df %>%
+  filter(p_value<.05) %>%
+  arrange(desc(Estimate^2)) %>%
+  dplyr::select(Coeffs) %>%
+  filter(Coeffs != "(Intercept)") %>%
+  head(200)
+
+cols3[5,1] <- "RoofMatl_Tar&Grv"
+#cols3 <-cols3[-7]
+vCols1 <- cols3$Coeffs
+
+vCols1 <- c("SalePrice", "OverallCond", "GrLivArea", "OverallQual", "RoofMatl_WdShngl", "Neighborhood_MeadowV", "Neighborhood_Edwards", "YearBuilt", "LotArea")
+
+vCols1 <- c("SalePrice", "OverallCond", "GrLivArea", "OverallQual", "YearBuilt", "LotArea")
+
+home_sales14 <- home_sales13 %>%
+  dplyr::select(c(vCols1, SalePrice))
+
+m4 = lm(SalePrice ~ ., data = home_sales14)
+summary(m4)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+plot(m4)
+
+```
+
+```{r}
+prediction2 <- as.data.frame(predict(m4, newdata = home_kagglesales11))
+prediction2
+prediction2 <- exp(prediction2)
+prediction2
+
+
+library("writexl")
+write_xlsx(prediction2, "C:\\Users\\erico\\Desktop\\people.xlsx")
+```
