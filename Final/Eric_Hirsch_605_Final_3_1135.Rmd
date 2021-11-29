@@ -681,8 +681,8 @@ prediction
 
 ```{r}
 
-library("writexl")
-write_xlsx(prediction, "C:\\Users\\erico\\Desktop\\people2.xlsx")
+#library("writexl")
+#write_xlsx(prediction, "C:\\Users\\erico\\Desktop\\people2.xlsx")
 ```
 
 Deal with overfit
@@ -728,6 +728,6 @@ prediction2 <- exp(prediction2)
 prediction2
 
 
-library("writexl")
-write_xlsx(prediction2, "C:\\Users\\erico\\Desktop\\people.xlsx")
+#library("writexl")
+#write_xlsx(prediction2, "C:\\Users\\erico\\Desktop\\people.xlsx")
 ```

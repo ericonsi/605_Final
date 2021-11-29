@@ -1,0 +1,582 @@
+---
+title: "Untitled"
+author: "Eric Hirsch"
+date: "11/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load libraries
+library(tidymodels)
+library(vip)
+library(tidyverse)
+library(lmtest)
+library(skimr)
+library(mltools)
+library(psych)
+```
+
+```{r}
+home_sales <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\train.csv", stringsAsFactors=TRUE, header = TRUE)
+home_kaggle_test <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\test.csv", stringsAsFactors=TRUE, header = TRUE)
+home_submit <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\sample_submission.csv", header = TRUE)
+```
+```{r}
+
+head(home_sales, 10)
+dim(home_sales)
+glimpse(home_sales)
+summary(home_sales)
+skim(home_sales)
+str(home_sales)
+```
+
+
+#### 1. Split the data
+
+a. get rid of columns that are mostly na
+
+```{r}
+
+home_sales2 <- home_sales %>%
+  dplyr::select_if(colSums(!is.na(.))>1200) 
+
+```
+
+remove utlities becasue it only has one value
+
+```{r}
+
+home_sales3 <- home_sales2 %>%
+  dplyr::select(-Utilities) %>%
+  dplyr::select(-Id)
+
+```
+
+
+
+#### 1. Split the data
+
+Adjustments : 
+1. log of y
+2. eliminate na rows after eliminating mostly na columns
+3. fix one-hots to account for sparse columns
+
+
+```{r}
+
+set.seed(271)
+
+home_sales4 <- home_sales3 %>%
+  mutate(SalePrice = log(SalePrice)) %>%
+  na.omit(SalePrice)
+```
+
+
+Try again without tidymodels but using home_sales4 which already has log and na control
+
+1. scale
+2. one-hot
+3. run regression
+4. predict
+
+```{r}
+library(data.table)
+
+home_sales10 <- one_hot(as.data.table(home_sales4), dropCols=TRUE)
+home_sales11 <- as.data.frame(scale(home_sales10[-SalePrice]))
+
+home_sales12 <- home_sales10 %>%
+  dplyr::select_if(~ !any(is.na(.)))
+
+describe(home_sales12$SalePrice)
+
+```
+```{r}
+
+m1 = lm(SalePrice ~ ., data = home_sales12)
+summary(m1)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+plot(m1)
+
+```
+drop outliers
+
+```{r}
+
+
+
+```
+predict
+```{r}
+
+
+
+home_kaggle_sales2 <- home_kaggle_test %>%
+  dplyr::select_if(colSums(!is.na(.))>=1459) 
+
+library(data.table)
+
+home_kagglesales10 <- one_hot(as.data.table(home_kaggle_sales2), dropCols=TRUE)
+home_kagglesales11 <- as.data.frame(scale(home_kagglesales10))
+
+home_kagglesales12 <- home_kagglesales11 %>%
+  dplyr::select_if(~ !any(is.na(.)))
+
+#describe(home_kagglesales12)
+
+```
+```{r}
+library(janitor)
+cols <- janitor::compare_df_cols(home_sales12, home_kagglesales11)
+
+cols1 <- cols %>%
+  dplyr::filter(is.na(home_kagglesales11)) %>%
+  dplyr::filter(column_name != "SalePrice")
+
+cols2 <- as.vector(cols1$column_name)
+cols2
+
+home_sales13 <- home_sales12 %>%
+  dplyr::select(-cols2)
+
+```
+
+```{r}
+m2 = lm(SalePrice ~ ., data = home_sales13)
+summary(m2)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+plot(m2)
+```
+```{r}
+
+prediction <- as.data.frame(predict(m2, newdata = home_kagglesales11))
+prediction
+prediction <- exp(prediction)
+prediction
+
+
+
+```
+
+```{r}
+
+library("writexl")
+write_xlsx(prediction, "C:\\Users\\Eric\\Desktop\\people2.xlsx")
+```
+
+Deal with overfit
+
+```{r}
+
+df <- as.data.frame(summary(m2)$coefficients[])
+df <- cbind(Coeffs = rownames(df), df)
+rownames(df) <- 1:nrow(df)
+
+df["p_value"] <- df[,5]
+
+cols3 <- df %>%
+  filter(p_value<.05) %>%
+  arrange(desc(Estimate^2)) %>%
+  dplyr::select(Coeffs) %>%
+  filter(Coeffs != "(Intercept)") %>%
+  head(200)
+
+cols3[5,1] <- "RoofMatl_Tar&Grv"
+#cols3 <-cols3[-7]
+vCols1 <- cols3$Coeffs
+
+vCols1 <- c("SalePrice", "OverallCond", "GrLivArea", "OverallQual", "RoofMatl_WdShngl", "Neighborhood_MeadowV", "Neighborhood_Edwards", "YearBuilt", "LotArea")
+
+vCols1 <- c("SalePrice", "OverallCond", "GrLivArea", "OverallQual", "YearBuilt", "LotArea")
+
+home_sales14 <- home_sales13 %>%
+  dplyr::select(c(vCols1, SalePrice))
+
+m4 = lm(SalePrice ~ ., data = home_sales14)
+summary(m4)
+
+par(mfrow=c(2,2)) # plot all 4 plots in one
+plot(m4)
+
+```
+
+```{r}
+prediction2 <- as.data.frame(predict(m4, newdata = home_kagglesales11))
+prediction2
+prediction2 <- exp(prediction2)
+prediction2
+
+
+library("writexl")
+write_xlsx(prediction2, "C:\\Users\\Eric\\Desktop\\people.xlsx")
+```
+
+## Numeric
+```{r}
+
+numeric_data <- home_sales %>% select_if(is.numeric)
+dim(numeric_data)
+```
+Keep most important
+
+```{r}
+
+dfAll <- numeric_data
+
+numeric_data <- numeric_data[,c(1, 4, 7,8, 10:17, 28:34, 38)]
+str(numeric_data)
+
+```
+plot to see
+
+```{r}
+
+numeric_data[, 2:20] %>%
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+
+
+```
+remove high zero counts
+
+```{r}
+df <- numeric_data[,-c(6,11,16:19)]
+str(df)
+
+```
+
+Model
+```{r}
+
+# Standardize predictors
+means <- sapply(df[,2:13],mean)
+stdev <- sapply(df[,2:13],sd)
+df.scaled <- as.data.frame(scale(df[,2:13], center=means, scale=stdev))
+df.scaled$SalePrice <- df$SalePrice
+df.scaled$Id <- df$Id
+head(df.scaled)
+```
+
+fit
+
+```{r}
+
+attach(df.scaled)
+mod_1 <- lm(SalePrice ~ LotArea + YearBuilt + YearRemodAdd + BsmtFinSF1 + BsmtUnfSF + TotalBsmtSF + X1stFlrSF + X2ndFlrSF + GrLivArea + GarageArea + WoodDeckSF + OpenPorchSF)
+summary(mod_1)
+
+```
+Final model 
+```{r}
+
+
+mod_4 <- lm(SalePrice ~ LotArea + YearBuilt + YearRemodAdd + BsmtFinSF1 + TotalBsmtSF + X1stFlrSF + X2ndFlrSF + GarageArea + WoodDeckSF)
+summary(mod_4)
+```
+
+
+Load test data
+
+```{r}
+
+#Load the data and remove columns same as our training data
+test_df <- home_kaggle_test
+test_df <- test_df %>% select_if(is.numeric)
+test_df <- test_df[,c(1, 4, 7,8, 10:17, 28:34)]
+test_df <- test_df[,-c(6,11,16:19)]
+str(test_df)
+
+```
+
+Scale everything
+
+```{r}
+
+# Standardize test predictors
+test.scaled <- as.data.frame(scale(test_df[,2:13], center=means, scale=stdev))
+test.scaled$SalePrice <- test_df$SalePrice
+test.scaled$Id <- test_df$Id
+head(test.scaled)
+```
+
+Predict everything
+```{r}
+
+predictions <- predict(mod_4,newdata=test.scaled)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- test.scaled$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- 0
+head(predictions)
+```
+
+```{r}
+
+library("writexl")
+write_xlsx(predictions, "C:\\Users\\Eric\\Desktop\\people3.xlsx")
+```
+Try the log
+
+```{r}
+mod_5 <- lm(log(SalePrice) ~ LotArea + YearBuilt + YearRemodAdd + BsmtFinSF1 + TotalBsmtSF + X1stFlrSF + X2ndFlrSF + GarageArea + WoodDeckSF)
+summary(mod_5)
+```
+
+Predict everything
+```{r}
+predictions <- predict(mod_5,newdata=test.scaled)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- test.scaled$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- 0
+predictions$SalePrice <- exp(predictions$SalePrice)
+head(predictions)
+```
+
+```{r}
+write.csv(predictions,"C:\\Users\\Eric\\Desktop\\people3.csv", row.names=FALSE)
+```
+Add neighborhood
+
+```{r}
+
+dfNeighborhood <- one_hot(as.data.table(home_sales), dropCols=TRUE)
+dfNeighborhood <- dplyr::select(dfNeighborhood, Neighborhood_Blmngtn:Neighborhood_Veenker)
+
+df6 <- dplyr::select(df.scaled, c(SalePrice, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, WoodDeckSF))
+
+dfNeighborhood_test <- one_hot(as.data.table(home_kaggle_test), dropCols=TRUE)
+dfNeighborhood_test <- dplyr::select(dfNeighborhood_test, Neighborhood_Blmngtn:Neighborhood_Veenker)
+
+test_df6 <- dplyr::select(test.scaled, c(LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, WoodDeckSF))
+
+df6 <- cbind(df6, dfNeighborhood)
+test_df6 <- cbind(test_df6, dfNeighborhood_test)
+
+```
+
+Try model with neighborhood
+
+```{r}
+mod_6 <- lm(log(SalePrice) ~ ., data=df6)
+summary(mod_6)
+```
+predict 6
+```{r}
+predictions <- predict(mod_6,newdata=test_df6)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- test.scaled$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- log(median(home_sales$SalePrice))
+predictions$SalePrice <- exp(predictions$SalePrice)
+head(predictions)
+```
+```{r}
+write.csv(predictions,"C:\\Users\\Eric\\Desktop\\people6.csv", row.names=FALSE)
+```
+
+Add Roof
+
+```{r}
+
+dfRoof <- one_hot(as.data.table(home_sales), dropCols=TRUE)
+dfRoof <- dplyr::select(dfRoof, c(RoofMatl_WdShngl, RoofMatl_CompShg, 'RoofMatl_Tar&Grv'))
+
+dfRoof_test <- one_hot(as.data.table(home_kaggle_test), dropCols=TRUE)
+dfRoof_test <- dplyr::select(dfRoof_test, c(RoofMatl_WdShngl, RoofMatl_CompShg, 'RoofMatl_Tar&Grv'))
+
+df7 <- cbind(df6, dfRoof)
+df7 <- dplyr::select(df7, -Neighborhood_Veenker)
+
+test_df7 <- cbind(test_df6, dfRoof_test)
+test_df7 <- dplyr::select(test_df7, -Neighborhood_Veenker)
+
+```
+
+Try model Roof material
+
+```{r}
+mod_7 <- lm(log(SalePrice) ~ ., data=df7)
+summary(mod_7)
+```
+Predict 7
+```{r}
+
+predictions <- predict(mod_7,newdata=test_df7)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- test.scaled$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- log(median(home_sales$SalePrice))
+predictions$SalePrice <- exp(predictions$SalePrice)
+head(predictions)
+```
+
+```{r}
+
+write.csv(predictions,"C:\\Users\\Eric\\Desktop\\people7.csv", row.names=FALSE)
+```
+
+```{r}
+plot(mod_7)
+```
+
+`Remove outliers
+
+```{r}
+df8 <- slice(df7, -1299)
+df8 <- slice(df8, -524)
+```
+
+```{r}
+
+mod_8 <- lm(log(SalePrice) ~ ., data=df8)
+summary(mod_8)
+```
+
+predict 8
+
+```{r}
+
+predictions <- predict(mod_8,newdata=test_df7)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- test.scaled$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- log(median(home_sales$SalePrice))
+predictions$SalePrice <- exp(predictions$SalePrice)
+head(predictions)
+```
+
+```{r}
+
+write.csv(predictions,"C:\\Users\\Eric\\Desktop\\people8.csv", row.names=FALSE)
+```
+
+```{r}
+library(MASS)
+step_lm <- stepAIC(mod_8, trace=FALSE)
+summary(step_lm)
+
+```
+
+```{r}
+dfAll2 <- na.omit(dfAll)
+
+mod_9 <- lm(log(SalePrice) ~ ., data=dfAll2)
+summary(mod_9)
+```
+```{r}
+step_lm2 <- stepAIC(mod_9, trace=FALSE)
+summary(step_lm2)
+
+```
+
+Add neighborhood 2
+
+```{r}
+
+dfAll = scale(dfAll)
+
+dfNeighborhood <- one_hot(as.data.table(home_sales), dropCols=TRUE)
+dfNeighborhood <- dplyr::select(dfNeighborhood, Neighborhood_Blmngtn:Neighborhood_Veenker)
+
+df6 <- dfAll
+
+dfNeighborhood_test <- one_hot(as.data.table(home_kaggle_test), dropCols=TRUE)
+dfNeighborhood_test <- dplyr::select(dfNeighborhood_test, Neighborhood_Blmngtn:Neighborhood_Veenker)
+
+test_df6 <- home_kaggle_test %>% select_if(is.numeric)
+
+df6 <- cbind(df6, dfNeighborhood)
+test_df6 <- cbind(test_df6, dfNeighborhood_test)
+
+
+
+dfRoof <- one_hot(as.data.table(home_sales), dropCols=TRUE)
+dfRoof <- dplyr::select(dfRoof, c(RoofMatl_WdShngl, RoofMatl_CompShg, 'RoofMatl_Tar&Grv'))
+
+dfRoof_test <- one_hot(as.data.table(home_kaggle_test), dropCols=TRUE)
+dfRoof_test <- dplyr::select(dfRoof_test, c(RoofMatl_WdShngl, RoofMatl_CompShg, 'RoofMatl_Tar&Grv'))
+
+df16 <- df6
+
+df17 <- cbind(df16, dfRoof)
+df17 <- dplyr::select(df17, -Neighborhood_Veenker)
+
+test_df17 <- cbind(test_df6, dfRoof_test)
+test_df17 <- dplyr::select(test_df17, -Neighborhood_Veenker)
+
+df17 <- na.omit(df17)
+
+
+```
+
+Try model with neighborhood
+
+```{r}
+
+df17 <- slice(df17, -1299)
+df17 <- slice(df17, -524)
+
+mod_17 <- lm(log(SalePrice) ~ ., data=df17)
+summary(mod_17)
+```
+
+
+```{r}
+step_lm <- stepAIC(mod_17, trace=FALSE)
+summary(step_lm)
+
+```
+
+predict 17
+```{r}
+predictions <- predict(mod_17,newdata=test_df17)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- test.scaled$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- log(median(home_sales$SalePrice))
+predictions$SalePrice <- exp(predictions$SalePrice)
+head(predictions)
+```
+
+```{r}
+
+plot(step_lm)
+```
+
+```{r}
+write.csv(predictions,"C:\\Users\\Eric\\Desktop\\people17.csv", row.names=FALSE)
+```
+Use algorithm to find most important
+```{r}
+#get numeric_data and scale
+x1 <- as.data.frame(scale(dfAll[,1:37]))
+
+x1 = na.omit(x1)
+
+#Run on log
+mx1 <- lm(log(SalePrice) ~ ., data=x1)
+
+#4 step
+
+step_lm <- stepAIC(mx1, trace=FALSE)
+summary(step_lm)
+
+#5 gather most important
+```
+
