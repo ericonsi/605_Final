@@ -351,15 +351,19 @@ Add neighborhood
 
 ```{r}
 
+#vv <- c(SalePrice, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, WoodDeckSF)
+
+#vv <- c(SalePrice, OverallQual, OverCondition, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, FirePlaces, BedroomAbvGr, ScreenPorch)
+
 dfNeighborhood <- one_hot(as.data.table(home_sales), dropCols=TRUE)
 dfNeighborhood <- dplyr::select(dfNeighborhood, Neighborhood_Blmngtn:Neighborhood_Veenker)
 
-df6 <- dplyr::select(df.scaled, c(SalePrice, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, WoodDeckSF))
+df6 <- dplyr::select(df.scaled, c(SalePrice, OverallQual, OverCondition, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, FirePlaces, BedroomAbvGr, ScreenPorch))
 
 dfNeighborhood_test <- one_hot(as.data.table(home_kaggle_test), dropCols=TRUE)
 dfNeighborhood_test <- dplyr::select(dfNeighborhood_test, Neighborhood_Blmngtn:Neighborhood_Veenker)
 
-test_df6 <- dplyr::select(test.scaled, c(LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, WoodDeckSF))
+test_df6 <- dplyr::select(test.scaled, c(SalePrice, OverallQual, OverCondition, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, FirePlaces, BedroomAbvGr, ScreenPorch))
 
 df6 <- cbind(df6, dfNeighborhood)
 test_df6 <- cbind(test_df6, dfNeighborhood_test)
