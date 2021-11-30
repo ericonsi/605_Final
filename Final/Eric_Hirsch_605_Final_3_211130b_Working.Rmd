@@ -240,7 +240,7 @@ Transform GrLivArea
 hist(log(dfFinal1$GrLivArea))
 
 dfFinal3 <- dfFinal1 %>%
-  mutate(GrLivArea = log(GrLivArea))
+  mutate(GrLivArea = log(GrLivArea+10))
 
 mod_5 <- lm(SalePrice ~ ., data = dfFinal3)
 summary(mod_5)

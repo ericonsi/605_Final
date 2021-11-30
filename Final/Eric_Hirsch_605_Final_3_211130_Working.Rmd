@@ -18,7 +18,6 @@ library(lmtest)
 library(skimr)
 library(mltools)
 library(psych)
-library(data.table)
 ```
 
 #### 1. Read Data
@@ -108,7 +107,7 @@ We don't want to choose all of the variables as this would inevitably lead to mu
 
 ```{r}
 
-dfCor <- as.data.frame(cor(df.scaled, df.scaled$SalePrice))
+dfCor <- as.data.frame(cor(df.scaled, SalePrice))
 dfCor
 
 
@@ -126,8 +125,7 @@ summary(mod_1)
 We do the same analysis with categorical variables.
 
 ```{r}
-nonnumeric_data4 <- cbind(nonnumeric_data3, df.scaled$SalePrice)
-dfCor <- as.data.frame(cor(nonnumeric_data4, nonnumeric_data4$V2))
+dfCor <- as.data.frame(cor(nonnumeric_data3, SalePrice))
 dfCor
 ```
 
@@ -161,36 +159,8 @@ Thus our final df:
 dfFinal <- step1$model
 head(dfFinal)
 
-```
-
-Load test data and prepare as we did the training data
-
-```{r}
-
-numeric_data_test <- home_kaggle_test %>% select_if(is.numeric)
-nonnumeric_data_test <- home_kaggle_test %>% select_if(Negate(is.numeric))
-
-#1. one-hot the categorical variables
-
-nonnumeric_data_test1 <- nonnumeric_data_test %>%
-  dplyr::select(ExterQual, Exterior1st, HouseStyle, Neighborhood, KitchenQual, HeatingQC, Foundation)
-
-nonnumeric_data_OneHot <- one_hot(as.data.table(nonnumeric_data_test1), dropCols=TRUE)
-
-#Scale the numeric variables
-
-df.scaled_test <- as.data.frame(scale(numeric_data_test))
-df.scaled_test$Id <- numeric_data_test$Id
-
-#recombine
-
-dfTest_Final <- cbind(df.scaled_test, nonnumeric_data_OneHot)
-```
-
 #Check if the dataset is missing columns from the test dataset and if so drop them from the original
-```{r}
 
-library(janitor)
 compare_df_cols(dfTest_Final, dfFinal)
 
 dfFinal1 <- dfFinal %>%
@@ -199,8 +169,6 @@ dfFinal1 <- dfFinal %>%
   dplyr::select(-LotShape_IR3)
   
 ```
-
-Run the model
 
 ```{r}
 
@@ -249,12 +217,37 @@ step4 <- stepAIC(mod_5, trace=FALSE)
 summary(step4)
 ```
 
+
+
+Load test data and prepare as we did the training data
+
+```{r}
+
+numeric_data_test <- home_kaggle_test %>% select_if(is.numeric)
+nonnumeric_data_test <- home_kaggle_test %>% select_if(Negate(is.numeric))
+
+#1. one-hot the categorical variables
+
+nonnumeric_data_test1 <- nonnumeric_data_test %>%
+  dplyr::select(ExterQual, Exterior1st, HouseStyle, Neighborhood, KitchenQual, HeatingQC, Foundation)
+
+nonnumeric_data_OneHot <- one_hot(as.data.table(nonnumeric_data_test1), dropCols=TRUE)
+
+#Scale the numeric variables
+
+df.scaled_test <- as.data.frame(scale(numeric_data_test))
+
+#recombine
+
+dfTest_Final <- cbind(df.scaled_test, nonnumeric_data_OneHot)
+```
+
 Predict the model
 ```{r}
 
-predictions <- predict(step2,newdata=dfTest_Final)
+predictions <- predict(step4,newdata=dfTest_Final)
 predictions <- data.frame(as.vector(predictions))
-predictions$Id <- dfTest_Final$Id
+predictions$Id <- test.scaled$Id
 predictions[,c(1,2)] <- predictions[,c(2,1)]
 colnames(predictions) <- c("Id", "SalePrice")
 predictions[is.na(predictions)] <- log(mean(home_sales$SalePrice))
@@ -265,7 +258,7 @@ head(predictions)
 
 ```{r}
 
-write_csv(predictions, "C:\\Users\\eric.hirsch\\Desktop\\people8.csv")
+write_csv(predictions, "C:\\Users\\eric.hirsch\\Desktop\\people7.csv")
 ```
 
-Removing outliers is not an improvement (.17020)  Neither is using the mean (.16984)  So we stick with step2, the original model. Transforming GrLivArea also hurts the model (.23417)  Best model is step 2.
+Removing outliers is not an improvement (.17020)  Neither is using the mean (.16984)  So we stick with step1, the original model. Transforming GrLivArea also hurts the model (.23417)  Best model is step 2.
