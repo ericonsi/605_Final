@@ -158,27 +158,8 @@ Thus our final df:
 
 ```{r}
 
-<<<<<<< HEAD
-#vv <- c(SalePrice, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, WoodDeckSF)
-
-#vv <- c(SalePrice, OverallQual, OverCondition, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, FirePlaces, BedroomAbvGr, ScreenPorch)
-
-dfNeighborhood <- one_hot(as.data.table(home_sales), dropCols=TRUE)
-dfNeighborhood <- dplyr::select(dfNeighborhood, Neighborhood_Blmngtn:Neighborhood_Veenker)
-
-df6 <- dplyr::select(df.scaled, c(SalePrice, OverallQual, OverCondition, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, FirePlaces, BedroomAbvGr, ScreenPorch))
-
-dfNeighborhood_test <- one_hot(as.data.table(home_kaggle_test), dropCols=TRUE)
-dfNeighborhood_test <- dplyr::select(dfNeighborhood_test, Neighborhood_Blmngtn:Neighborhood_Veenker)
-
-test_df6 <- dplyr::select(test.scaled, c(SalePrice, OverallQual, OverCondition, LotArea, YearBuilt, YearRemodAdd, BsmtFinSF1, TotalBsmtSF, X1stFlrSF, X2ndFlrSF, GarageArea, FirePlaces, BedroomAbvGr, ScreenPorch))
-
-df6 <- cbind(df6, dfNeighborhood)
-test_df6 <- cbind(test_df6, dfNeighborhood_test)
-=======
 dfFinal <- step1$model
 head(dfFinal)
->>>>>>> 23d6de9944609c4efeb15e8d1f94a2bdb38b3c41
 
 ```
 
@@ -259,7 +240,7 @@ Transform GrLivArea
 hist(log(dfFinal1$GrLivArea))
 
 dfFinal3 <- dfFinal1 %>%
-  mutate(GrLivArea = log(GrLivArea))
+  mutate(GrLivArea = log(GrLivArea+10))
 
 mod_5 <- lm(SalePrice ~ ., data = dfFinal3)
 summary(mod_5)

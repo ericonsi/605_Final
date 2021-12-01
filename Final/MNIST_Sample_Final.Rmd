@@ -23,7 +23,9 @@ library(ggplot2)
 library(gridExtra)
 
 #Loading train & test data
-mnist2 <- read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST.csv",header=TRUE)
+#mnist2 <- read.csv("D:\\RStudio\\CUNY_605\\Final\\MNIST.csv",header=TRUE)
+
+mnist2 <- read.csv("C:\\Users\\eric.hirsch\\Desktop\\RStudio\\605_Final\\Final\\MNIST.csv",header=TRUE)
 ```
 ```{r}
 mnist <- mnist2[sample(nrow(mnist2), 5000), ]  
@@ -180,39 +182,3 @@ exp(coef(multinom.fit))
 
 head(probability.table <- fitted(multinom.fit))
 ```
-
-
-```{r}
-
-train <- mnist
-
-# Predicting the values for train dataset
-train$precticed <- predict(multinom.fit, newdata = train, "class")
-
-# Building classification table
-ctable <- table(train$Type, train$precticed)
-
-# Calculating accuracy - sum of diagonal elements divided by total obs
-round((sum(diag(ctable))/sum(ctable))*100,2)
-```
-
-```{r}
-
-
-# Predicting the values for train dataset
-test$precticed <- predict(multinom.fit, newdata = test, "class")
-
-# Building classification table
-ctable <- table(test$Type, test$precticed)
-
-# Calculating accuracy - sum of diagonal elements divided by total obs
-round((sum(diag(ctable))/sum(ctable))*100,2)
-```
-
-
-
-
-
-
-
-
