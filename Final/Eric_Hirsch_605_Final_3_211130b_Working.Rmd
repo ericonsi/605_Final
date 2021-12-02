@@ -25,7 +25,7 @@ library(data.table)
 
 ```{r}
 
-location = "work"
+location = "home"
 
 if (location=="home") 
   {

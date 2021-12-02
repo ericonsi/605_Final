@@ -34,7 +34,6 @@ mnist <- mnist2[sample(nrow(mnist2), 5000), ]
 colnames(mnist)[1]<-"Digit"
 mnist[is.na(mnist)] <- 0
 mnist_norm<-as.matrix(mnist[,-1]/255)
-head(mnist_norm)
 ```
 1. Using the training.csv file, plot representations of the first 10 images to understand the data format. Go ahead and divide all pixels by 255 to produce values between 0 and 1. (This is equivalent to min-max scaling.) (5 points)
 
@@ -170,7 +169,8 @@ mnist_sample <- mnist_scaled1[sample(nrow(mnist2), 1000), ]
 ```
 ```{r}
 # Training the multinomial model
-m_1 <- multinom(Digit ~ ., data=mnist_scaled1, MaxNWts =1000000, maxit=1000)
+#m_1 <- multinom(Digit ~ ., data=mnist_scaled1, MaxNWts =1000000, maxit=1000)
+m_1 <- multinom(Digit ~ ., data=mnist_scaled1, MaxNWts =1000000, maxit=10)
 ```
 ```{r}
 
