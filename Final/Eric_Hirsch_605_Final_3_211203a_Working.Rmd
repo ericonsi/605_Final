@@ -9,47 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
-# Load libraries
-library(tidymodels)
-library(vip)
-library(tidyverse)
-library(lmtest)
-library(skimr)
-library(mltools)
-library(psych)
-library(data.table)
-```
-
-#### 1. Read Data
-
-```{r}
-
-location = "home"
-
-if (location=="home") 
-  {
-  home_sales <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\train.csv", stringsAsFactors=TRUE, header = TRUE)
-  home_kaggle_test <- read.csv("D:\\RStudio\\605_Final\\Final\\housing\\test.csv", stringsAsFactors=TRUE, header = TRUE)
-  } else
-    
-  {
-  home_sales <- read.csv("C:\\Users\\eric.hirsch\\Desktop\\RStudio\\605_Final\\Final\\housing\\train.csv", stringsAsFactors=TRUE, header = TRUE)
-  home_kaggle_test <- read.csv("C:\\Users\\eric.hirsch\\Desktop\\RStudio\\605_Final\\Final\\housing\\test.csv", stringsAsFactors=TRUE, header = TRUE)
-  }
-
-```
-
-#### 2. Initial Exploration
-
-```{r}
-
-dim(home_sales)
-summary(home_sales)
-skim(home_sales)
-str(home_sales)
-```
-
 
 #### 3. Wrangle
 

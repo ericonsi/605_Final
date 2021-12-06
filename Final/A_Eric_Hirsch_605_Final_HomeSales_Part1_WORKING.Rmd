@@ -186,6 +186,9 @@ hist(home_sales$SalePrice)
 hist(means.exp)
 
 ```
+
+Quantiles for the generated distribution
+
 ```{r}
 lambda <- 5.527268e-06
 prob <- 0.05
@@ -198,12 +201,241 @@ prob <- 0.95
 qexp(prob,rate=lambda)
 ```
 
+Confidence interval for the mean of the empirical distribution, assuming normality
+
 ```{r}
 
 t.test(home_sales$SalePrice)
 
 ```
+Quantiles for the empirical distribution
+
 ```{r}
 
 quantile(home_sales$SalePrice, probs = c(0.05, 0.95))
 ```
+We can see how close the generated function is to the actual distribution for SalePrice from the histograms. The quantiles show some differences, however. Quantiles for the generated distribution (9280, 541991) are wider than those for the empirical distribution (88000,326100).  This is perhaps picking up the fact that the empirical distribution is more normal than the generated distribution, in that there are a number of observations before the distribution peaks. The empirical mean CI (176k to 185k) is far closer to the 5th than the 95th quantile - this shows us the skew of the distribution.
+
+## Part II
+
+
+
+#### 3. Wrangle
+
+a. Get rid of columns that have na
+
+We would normally investigate whether valuable data would be lost with this step - however, we can see from the above that most variables are preserved and in the interests of time will proceed.
+```{r}
+
+home_sales2 <- home_sales %>%
+  dplyr::select_if(~ !any(is.na(.)))
+
+```
+
+b. Remove utilities because it only has one value and ID because it is irrelevant
+
+```{r}
+
+home_sales3 <- home_sales2 %>%
+  dplyr::select(-Utilities) %>%
+  dplyr::select(-Id)
+
+```
+
+c. Scale the numeric variables.
+
+```{r}
+numeric_data <- home_sales3 %>% select_if(is.numeric)
+nonnumeric_data <- home_sales3 %>% select_if(Negate(is.numeric))
+
+df.scaled <- as.data.frame(scale(numeric_data))
+df.scaled$SalePrice <- numeric_data$SalePrice
+
+```
+
+d. Eliminate unbalanced character variables and then one-hot
+
+```{r}
+nonnumeric_data2 <- nonnumeric_data %>%
+  dplyr::select(ExterQual, Exterior1st, HouseStyle, Neighborhood, LotConfig, LotShape, KitchenQual, HeatingQC, Foundation)
+
+nonnumeric_data3 <- one_hot(as.data.table(nonnumeric_data2), dropCols=TRUE)
+
+home_sales4 <- cbind(nonnumeric_data3, df.scaled)
+```
+
+d. Take the log of SalePrice - based on the analysis above, the analysis would benefit from this
+
+```{r}
+home_sales_wrangled <- home_sales4 %>%
+  mutate(SalePrice = log(SalePrice)) 
+```
+
+#### Choosing variables for a base model
+
+We don't want to choose all of the variables as this would inevitably lead to multicollinearity, reduction in adjusted R squared and serious overfitting.  
+
+```{r}
+
+head(dfCorr, 20)
+
+```
+Based on this analysis, we'll start with the following numeric variables and then add some categorical variable.  We choose based on correlation and not collinear with other obvious variables (e.g. garage area and garage cars):
+
+
+```{r}
+
+mod_1 <- lm(SalePrice ~ LotArea + YearBuilt + YearRemodAdd + TotalBsmtSF + X1stFlrSF + GrLivArea + GarageCars + WoodDeckSF + OpenPorchSF + TotRmsAbvGrd + Fireplaces + FullBath, data = home_sales_wrangled)
+summary(mod_1)
+
+```
+
+We do the same analysis with categorical variables.
+
+```{r}
+nonnumeric_data4 <- cbind(nonnumeric_data3, df.scaled$SalePrice)
+dfCor <- as.data.frame(cor(nonnumeric_data4, nonnumeric_data4$V2))
+dfCor
+```
+
+Our Final model 
+```{r}
+
+home_sales_wrangled_Final <- home_sales_wrangled %>%
+  dplyr::select(SalePrice, LotArea, YearBuilt, YearRemodAdd, TotalBsmtSF, X1stFlrSF, GrLivArea, GarageCars, WoodDeckSF, OpenPorchSF, TotRmsAbvGrd, Fireplaces, FullBath, -LotConfig_Corner:LotConfig_Inside, LotShape_IR1:LotShape_Reg)
+
+
+mod_2 <- lm(SalePrice ~ ., data = home_sales_wrangled_Final)
+summary(mod_2)
+```
+We now step through the model to see the effect on adjusted R squared of eliminating variables.  We do this with the R Step_AIC function.
+
+```{r}
+library(MASS)
+step1 <- stepAIC(mod_2, trace=FALSE)
+summary(step1)
+
+```
+```{r}
+plot(step1)
+```
+
+
+Thus our final df:
+
+```{r}
+
+dfFinal <- step1$model
+head(dfFinal)
+
+```
+
+Load test data and prepare as we did the training data
+
+```{r}
+
+numeric_data_test <- home_kaggle_test %>% select_if(is.numeric)
+nonnumeric_data_test <- home_kaggle_test %>% select_if(Negate(is.numeric))
+
+#1. one-hot the categorical variables
+
+library(data.table)
+library(tidymodels)
+
+nonnumeric_data_test1 <- nonnumeric_data_test %>%
+  dplyr::select(ExterQual, Exterior1st, HouseStyle, Neighborhood, KitchenQual, HeatingQC, Foundation)
+
+nonnumeric_data_OneHot <- one_hot(data.table::as.data.table(nonnumeric_data_test1), dropCols=TRUE)
+
+#Scale the numeric variables
+
+df.scaled_test <- as.data.frame(scale(numeric_data_test))
+df.scaled_test$Id <- numeric_data_test$Id
+
+#recombine
+
+dfTest_Final <- cbind(df.scaled_test, nonnumeric_data_OneHot)
+```
+
+#Check if the dataset is missing columns from the test dataset and if so drop them from the original
+```{r}
+
+library(janitor)
+compare_df_cols(dfTest_Final, dfFinal)
+
+dfFinal1 <- dfFinal %>%
+  dplyr::select(-LotConfig_CulDSac) %>%
+  dplyr::select(-LotConfig_FR2)  %>%
+  dplyr::select(-LotShape_IR3)
+  
+```
+
+Run the model
+
+```{r}
+
+mod_3 <- lm(SalePrice ~ ., data = dfFinal1)
+summary(mod_3)
+
+step2 <- stepAIC(mod_3, trace=FALSE)
+summary(step2)
+```
+
+```{r}
+
+plot(step2)
+
+```
+Remove outliers
+
+```{r}
+dfFinal2 <- slice(dfFinal1, -1299)
+dfFinal2 <- slice(dfFinal2, -524)
+dfFinal2 <- slice(dfFinal2, -1001)
+dfFinal2 <- slice(dfFinal2, -31)
+```
+
+```{r}
+
+mod_4 <- lm(SalePrice ~ ., data = dfFinal2)
+summary(mod_4)
+
+step3 <- stepAIC(mod_4, trace=FALSE)
+summary(step3)
+```
+
+Transform GrLivArea
+
+```{r}
+hist(log(dfFinal1$GrLivArea))
+
+dfFinal3 <- dfFinal1 %>%
+  mutate(GrLivArea = log(GrLivArea+10))
+
+mod_5 <- lm(SalePrice ~ ., data = dfFinal3)
+summary(mod_5)
+
+step4 <- stepAIC(mod_5, trace=FALSE)
+summary(step4)
+```
+
+Predict the model
+```{r}
+
+predictions <- predict(step2,newdata=dfTest_Final)
+predictions <- data.frame(as.vector(predictions))
+predictions$Id <- dfTest_Final$Id
+predictions[,c(1,2)] <- predictions[,c(2,1)]
+colnames(predictions) <- c("Id", "SalePrice")
+predictions[is.na(predictions)] <- log(mean(home_sales$SalePrice))
+predictions$SalePrice <- exp(predictions$SalePrice)
+head(predictions)
+
+```
+
+```{r}
+
+#write_csv(predictions, "C:\\Users\\eric.hirsch\\Desktop\\people8.csv")
+```
+
+Removing outliers is not an improvement (.17020)  Neither is using the mean (.16984)  So we stick with step2, the original model. Transforming GrLivArea also hurts the model (.23417)  Best model is step 2.
